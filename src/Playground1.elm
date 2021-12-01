@@ -3,11 +3,13 @@ module Playground1 exposing (..)
 import Angle
 import Browser
 import Circle2d
+import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Border as Border
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
+import Html.Events.Extra.Mouse as Mouse
 import LineSegment2d exposing (LineSegment2d)
 import Maybe.Extra as Maybe
 import Pixels exposing (Pixels)
@@ -20,9 +22,10 @@ import Svg.Attributes as Attr
 import Vector2d exposing (Vector2d)
 
 main = 
-    Browser.sandbox
+    Browser.element
         { init = init
         , update = update   
+        , subscriptions = subscriptions
         , view = view
         }
         
@@ -36,7 +39,8 @@ type alias Model =
     , targetDistance : Quantity Float Pixels
     }
 
-init = 
+init : () -> ( Model, Cmd Msg )
+init _ =
     { roomShape = 
         Polygon2d.singleLoop 
             [ Point2d.pixels 50 50 
@@ -50,15 +54,36 @@ init =
             |> Frame2d.rotateBy (Angle.degrees 315)
     , targetDistance = Pixels.float 300
     }
+        |> noCmds
 
         
+type Msg 
+    = NoOp
+    | MouseDownAt (Float, Float)
+
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
-    model     
+    case msg of 
+        MouseDownAt (x, y) ->
+            { model | catFrame = 
+                model.catFrame |> pointXAxisAt (Point2d.pixels x y)
+            }
+                |> noCmds
+
+        _ ->
+            model |> noCmds
+
+
+noCmds x = ( x, Cmd.none )
+
+
+subscriptions _ = 
+    Sub.none
         
 constants =
     { }
 
-view : Model -> Html ()
+view : Model -> Html Msg
 view model = 
     El.layout 
         [ El.width El.fill
@@ -77,10 +102,11 @@ svgContainer model =
     Svg.svg 
         [ Attr.width "500"
         , Attr.height "500"
+        , Mouse.onDown (\event -> MouseDownAt event.offsetPos)
         ]
         [ diagram model ]
 
-diagram : Model -> Svg ()
+diagram : Model -> Svg Msg
 diagram model =
     let 
         catLocation = 
@@ -137,6 +163,22 @@ diagram model =
 
 svgEmtpy = Svg.g [] []
 
+
+pointXAxisAt : Point2d Pixels TopLeftCoords -> Frame2d Pixels TopLeftCoords {} -> Frame2d Pixels TopLeftCoords {}
+pointXAxisAt target frame =
+    let 
+        currentDirection =
+            Frame2d.xDirection frame
+
+        targetDirection = 
+            Vector2d.from (Frame2d.originPoint frame) target
+                |> Vector2d.direction
+                |> Maybe.withDefault currentDirection
+
+        angleDiff = 
+            Direction2d.angleFrom currentDirection targetDirection
+    in 
+        Frame2d.rotateBy angleDiff frame
 
 -- bouncePath : Polygon2d -> Point2d -> Direction2d -> Polyline2d
 -- bouncePath wallShape position gazeDirection = 

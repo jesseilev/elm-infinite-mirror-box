@@ -14,9 +14,12 @@
             "ianmackenzie/elm-geometry": "3.9.1",
             "ianmackenzie/elm-geometry-svg": "3.0.0",
             "ianmackenzie/elm-units": "2.9.0",
-            "mdgriffith/elm-ui": "1.1.8"
+            "mdgriffith/elm-ui": "1.1.8",
+            "mpizenberg/elm-pointer-events": "4.0.2"
         },
         "indirect": {
+            "elm/bytes": "1.0.8",
+            "elm/file": "1.0.5",
             "elm/json": "1.1.3",
             "elm/random": "1.0.0",
             "elm/time": "1.0.0",
