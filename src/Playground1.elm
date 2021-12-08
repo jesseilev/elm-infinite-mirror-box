@@ -1,6 +1,7 @@
 module Playground1 exposing (..)
 
 import Angle
+import Axis2d exposing (Axis2d)
 import Browser
 import Circle2d
 import Direction2d exposing (Direction2d)
@@ -10,6 +11,7 @@ import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Events.Extra.Mouse as Mouse
+import Length exposing (Length)
 import LineSegment2d exposing (LineSegment2d)
 import Maybe.Extra as Maybe
 import Pixels exposing (Pixels)
@@ -32,6 +34,7 @@ main =
 
 
 type TopLeftCoords = TopLeftCoords 
+type alias Point = Point2d Length TopLeftCoords
 
 type alias Model = 
     { roomShape : Polygon2d Pixels TopLeftCoords
@@ -52,7 +55,7 @@ init _ =
         Frame2d.atOrigin
             |> Frame2d.translateBy (Vector2d.pixels 90 150)
             |> Frame2d.rotateBy (Angle.degrees 315)
-    , targetDistance = Pixels.float 300
+    , targetDistance = Pixels.float 2000
     }
         |> noCmds
 
@@ -159,6 +162,12 @@ diagram model =
             |> Maybe.withDefault svgEmtpy
         , Svg.circle2d [ Attr.fill "purple" ]
             (Circle2d.atPoint catLocation (Pixels.float 4))
+        , Svg.polyline2d
+            [ Attr.stroke "cyan"
+            , Attr.strokeWidth "6px"
+            , Attr.fill "none"
+            ]
+            (bouncePath model.roomShape model.targetDistance model.catFrame)
         ]
 
 svgEmtpy = Svg.g [] []
@@ -180,6 +189,65 @@ pointXAxisAt target frame =
     in 
         Frame2d.rotateBy angleDiff frame
 
--- bouncePath : Polygon2d -> Point2d -> Direction2d -> Polyline2d
--- bouncePath wallShape position gazeDirection = 
---     Polyline2d.fromVertices []
+bouncePath : Polygon2d u c -> Quantity Float u -> Frame2d u c d -> Polyline2d u c
+bouncePath wallShape gazeDistance frame = 
+    let 
+        position = 
+            Frame2d.originPoint frame
+
+        gazeVector = 
+            Vector2d.withLength gazeDistance (Frame2d.xDirection frame)
+
+        endPoint =
+            Point2d.translateBy gazeVector position
+
+        gazePathStraight = 
+            LineSegment2d.from position endPoint
+
+        bounceM : Maybe { point : Point2d u c, wall: LineSegment2d u c }
+        bounceM = 
+            wallShape
+                |> Polygon2d.edges
+                |> List.map (\e -> 
+                    LineSegment2d.intersectionPoint gazePathStraight e 
+                        |> Maybe.map (\p -> { point = p, wall = e }))
+                |> Maybe.orList
+
+        -- gazePathTail =
+        --     bounceM
+        --         |> Maybe.andThen (\b -> LineSegment2d.direction b.wall |> Maybe.map (\dir -> (b, dir)))
+        --         |> Maybe.map (\(b, wallDirection) -> 
+        --             LineSegment2d.from b.point endPoint
+        --                 |> LineSegment2d.mirrorAcross (Axis2d.through b.point wallDirection))
+        
+        recurse bounce = 
+            let 
+                newDistance = 
+                    gazeDistance |> Quantity.minus (Point2d.distanceFrom position bounce.point)
+
+                wallDirection = 
+                    LineSegment2d.direction bounce.wall 
+                        |> Maybe.withDefault Direction2d.x
+
+                newDirection = 
+                    Frame2d.xDirection frame
+                        |> Direction2d.mirrorAcross (Axis2d.through bounce.point wallDirection)
+
+                newFrame = 
+                    Frame2d.withXDirection newDirection bounce.point
+            in 
+                bouncePath wallShape newDistance newFrame
+
+        vertices = 
+            bounceM 
+                |> Maybe.map (\b -> b.point :: (Polyline2d.vertices (recurse b)))
+                |> Maybe.withDefault [ endPoint ]
+    in
+        Polyline2d.fromVertices vertices
+
+
+maybePair : Maybe a -> Maybe b -> Maybe (a, b)
+maybePair ma mb = 
+    case (ma, mb) of 
+        (Just x, Just y) -> Just (x, y)
+        _ -> Nothing
