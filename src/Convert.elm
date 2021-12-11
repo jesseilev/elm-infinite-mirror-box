@@ -15,6 +15,7 @@ import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
 import Vector2d exposing (Vector2d)
 
+
 pixelsPerMeter : Float 
 pixelsPerMeter = 100
 
@@ -61,3 +62,11 @@ polylineToPixels p =
     Polyline2d.segments p
         |> List.map (LineSegment2d.endPoint >> pointToPixels)
         |> Polyline2d.fromVertices
+
+
+
+mouseToScene : Frame2d Pixels globalC { defines : localC } -> (Float, Float) -> Point2d Meters localC
+mouseToScene containerFrame (x, y) = 
+    Point2d.pixels x y
+        |> Point2d.relativeTo containerFrame
+        |> pointToMeters

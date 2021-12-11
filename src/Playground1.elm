@@ -23,6 +23,7 @@ import Quantity exposing (Quantity)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Vector2d exposing (Vector2d)
+import Convert exposing (lengthToPixels)
 
 main = 
     Browser.element
@@ -31,14 +32,16 @@ main =
         , subscriptions = subscriptions
         , view = view
         }
-        
 
-
+{- origin point at the top left of the frame, x -> right, y -> down -}
 type TopLeftCoords = TopLeftCoords 
 
+{- origin point in the center of the frame, x -> right, y -> down -}
+type SceneCoords = SceneCoords
+
 type alias Model = 
-    { roomShape : Polygon2d Meters TopLeftCoords
-    , catFrame : Frame2d Meters TopLeftCoords {}
+    { roomShape : Polygon2d Meters SceneCoords
+    , catFrame : Frame2d Meters SceneCoords {}
     , targetDistance : Quantity Float Meters
     }
 
@@ -47,15 +50,14 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     { roomShape = 
         Polygon2d.singleLoop 
-            [ Point2d.meters 0.5 0.5
-            , Point2d.meters 3.5 1.0
-            , Point2d.meters 4.25 3.0
-            , Point2d.meters 1.0 4.5
+            [ Point2d.meters -2.0 -2.0
+            , Point2d.meters 2.0 -1.0
+            , Point2d.meters 2.25 1.0
+            , Point2d.meters -1.5 2.25
             ]
     , catFrame = 
         Frame2d.atOrigin
-            |> Frame2d.translateBy (Vector2d.meters 0.9 1.5)
-            |> Frame2d.rotateBy (Angle.degrees 3.15)
+            |> Frame2d.rotateBy (Angle.degrees 315)
     , targetDistance = Length.meters 20.0
     }
         |> noCmds
@@ -63,16 +65,13 @@ init _ =
         
 type Msg 
     = NoOp
-    | MouseDownAt (Float, Float)
+    | MouseDownAt (Point2d Meters SceneCoords)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
     case msg of 
-        MouseDownAt (x, y) ->
-            { model | catFrame = 
-                model.catFrame 
-                    |> pointXAxisAt (Point2d.pixels x y |> Convert.pointToMeters)
-            }
+        MouseDownAt sceneOffsetPos ->
+            { model | catFrame = model.catFrame |> pointXAxisAt sceneOffsetPos }
                 |> noCmds
 
         _ ->
@@ -86,7 +85,9 @@ subscriptions _ =
     Sub.none
         
 constants =
-    { }
+    { containerWidth = 500 
+    , containerHeight = 500 
+    }
 
 view : Model -> Html Msg
 view model = 
@@ -103,13 +104,22 @@ view model =
             (El.html (svgContainer model)))
 
 
+svgContainer : Model -> Html Msg
 svgContainer model =
     Svg.svg 
-        [ Attr.width "500"
-        , Attr.height "500"
-        , Mouse.onDown (\event -> MouseDownAt event.offsetPos)
+        [ Attr.width (constants.containerWidth |> String.fromFloat)
+        , Attr.height (constants.containerHeight |> String.fromFloat)
+        , Mouse.onDown (\event -> 
+            MouseDownAt (Convert.mouseToScene svgContainerFrame event.offsetPos))
         ]
-        [ diagram model ]
+        [ diagram model |> Svg.placeIn svgContainerFrame ]
+
+svgContainerFrame : Frame2d Pixels TopLeftCoords { defines : SceneCoords }
+svgContainerFrame = 
+    Frame2d.atPoint (Point2d.pixels 
+        (constants.containerWidth / 2.0) 
+        (constants.containerHeight / 2.0))
+
 
 diagram : Model -> Svg Msg
 diagram model =
@@ -148,14 +158,14 @@ diagram model =
             |> Maybe.withDefault svgEmtpy
         , Svg.circle2d [ Attr.fill "purple" ]
             (Circle2d.atPoint (catLocation |> Convert.pointToPixels) (Pixels.float 4))
-        , Svg.polyline2d
-            [ Attr.stroke "cyan"
-            , Attr.strokeWidth "6px"
-            , Attr.fill "none"
-            ]
-            (bouncePath model.roomShape model.targetDistance model.catFrame
-                |> Convert.polylineToPixels 
-            )
+        -- , Svg.polyline2d
+        --     [ Attr.stroke "cyan"
+        --     , Attr.strokeWidth "6px"
+        --     , Attr.fill "none"
+        --     ]
+        --     (bouncePath model.roomShape model.targetDistance model.catFrame
+        --         |> Convert.polylineToPixels 
+        --     )
         ]
 
 svgEmtpy = Svg.g [] []
