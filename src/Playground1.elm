@@ -4,6 +4,7 @@ import Angle
 import Axis2d exposing (Axis2d)
 import Browser
 import Circle2d
+import Convert
 import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Border as Border
@@ -11,7 +12,7 @@ import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Events.Extra.Mouse as Mouse
-import Length exposing (Length)
+import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import Maybe.Extra as Maybe
 import Pixels exposing (Pixels)
@@ -34,28 +35,28 @@ main =
 
 
 type TopLeftCoords = TopLeftCoords 
-type alias Point = Point2d Length TopLeftCoords
 
 type alias Model = 
-    { roomShape : Polygon2d Pixels TopLeftCoords
-    , catFrame : Frame2d Pixels TopLeftCoords {}
-    , targetDistance : Quantity Float Pixels
+    { roomShape : Polygon2d Meters TopLeftCoords
+    , catFrame : Frame2d Meters TopLeftCoords {}
+    , targetDistance : Quantity Float Meters
     }
+
 
 init : () -> ( Model, Cmd Msg )
 init _ =
     { roomShape = 
         Polygon2d.singleLoop 
-            [ Point2d.pixels 50 50 
-            , Point2d.pixels 350 70
-            , Point2d.pixels 425 300
-            , Point2d.pixels 100 450
+            [ Point2d.meters 0.5 0.5
+            , Point2d.meters 3.5 1.0
+            , Point2d.meters 4.25 3.0
+            , Point2d.meters 1.0 4.5
             ]
     , catFrame = 
         Frame2d.atOrigin
-            |> Frame2d.translateBy (Vector2d.pixels 90 150)
-            |> Frame2d.rotateBy (Angle.degrees 315)
-    , targetDistance = Pixels.float 2000
+            |> Frame2d.translateBy (Vector2d.meters 0.9 1.5)
+            |> Frame2d.rotateBy (Angle.degrees 3.15)
+    , targetDistance = Length.meters 20.0
     }
         |> noCmds
 
@@ -69,7 +70,8 @@ update msg model =
     case msg of 
         MouseDownAt (x, y) ->
             { model | catFrame = 
-                model.catFrame |> pointXAxisAt (Point2d.pixels x y)
+                model.catFrame 
+                    |> pointXAxisAt (Point2d.pixels x y |> Convert.pointToMeters)
             }
                 |> noCmds
 
@@ -115,16 +117,6 @@ diagram model =
         catLocation = 
             Frame2d.originPoint model.catFrame
 
-        mirrorLine =
-            LineSegment2d.from 
-                (Point2d.pixels 0 100)
-                (Point2d.pixels 300 100)
-
-        mirrorLine2 = 
-            LineSegment2d.from 
-                (Point2d.pixels 0 300)
-                (Point2d.pixels 300 300)
-
         sightLine = 
             LineSegment2d.fromPointAndVector catLocation
                 (Vector2d.withLength model.targetDistance (Frame2d.xDirection model.catFrame))
@@ -134,12 +126,6 @@ diagram model =
                 |> Polygon2d.edges
                 |> List.map (LineSegment2d.intersectionPoint sightLine)
                 |> Maybe.orList
-
-        drawWall = 
-            Svg.lineSegment2d
-                [ Attr.stroke "grey" 
-                , Attr.width "2"
-                ]
     in
     Svg.g 
         []
@@ -147,33 +133,35 @@ diagram model =
             [ Attr.stroke "blue" 
             , Attr.width "2"
             ]
-            sightLine
+            (sightLine |> Convert.lineSegmentToPixels)
         , Svg.polygon2d 
             [ Attr.stroke "orange"
             , Attr.strokeWidth "4"
             , Attr.fill "none"
             ]
-            model.roomShape
+            (model.roomShape |> Convert.polygonToPixels)
         , bouncePoint
             |> Maybe.map (\p -> 
                 Svg.circle2d [ Attr.fill "cyan" ]
-                    (Circle2d.atPoint p (Pixels.float 5))
+                    (Circle2d.atPoint (p |> Convert.pointToPixels) (Pixels.float 5))
             )
             |> Maybe.withDefault svgEmtpy
         , Svg.circle2d [ Attr.fill "purple" ]
-            (Circle2d.atPoint catLocation (Pixels.float 4))
+            (Circle2d.atPoint (catLocation |> Convert.pointToPixels) (Pixels.float 4))
         , Svg.polyline2d
             [ Attr.stroke "cyan"
             , Attr.strokeWidth "6px"
             , Attr.fill "none"
             ]
-            (bouncePath model.roomShape model.targetDistance model.catFrame)
+            (bouncePath model.roomShape model.targetDistance model.catFrame
+                |> Convert.polylineToPixels 
+            )
         ]
 
 svgEmtpy = Svg.g [] []
 
 
-pointXAxisAt : Point2d Pixels TopLeftCoords -> Frame2d Pixels TopLeftCoords {} -> Frame2d Pixels TopLeftCoords {}
+pointXAxisAt : Point2d u c -> Frame2d u c {} -> Frame2d u c {}
 pointXAxisAt target frame =
     let 
         currentDirection =
