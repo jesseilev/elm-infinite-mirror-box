@@ -8,10 +8,13 @@ import Convert
 import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Border as Border
+import Element.Events
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
+import Html.Events
 import Html.Events.Extra.Mouse as Mouse
+import Html.Events.Extra.Pointer as Pointer
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import Maybe.Extra as Maybe
@@ -27,6 +30,7 @@ import Convert exposing (lengthToPixels)
 import Rectangle2d exposing (Rectangle2d)
 import SketchPlane3d exposing (toPlane)
 import Axis2d exposing (relativeTo)
+import Pixels exposing (pixel)
 
 main = 
     Browser.element
@@ -46,10 +50,11 @@ type alias Model =
     { roomShape : Polygon2d Meters SceneCoords
     , catFrame : Frame2d Meters SceneCoords {}
     , targetDistance : Quantity Float Meters
-    , viewerPos : Vector2d Meters SceneCoords
+    , viewerPos : Point2d Meters SceneCoords
     , viewerAngle : Angle
     , mouseDragPos : Maybe (Point2d Meters SceneCoords)
     , mouseDown : Bool
+    , clickPosDebug : Point2d Meters SceneCoords
     }
 
 
@@ -66,10 +71,11 @@ init _ =
         Frame2d.atOrigin
             |> Frame2d.rotateBy (Angle.degrees 30)
     , targetDistance = Length.meters 20.0
-    , viewerPos = Vector2d.meters 1.0 -0.5
+    , viewerPos = Point2d.meters 1.0 -0.5
     , viewerAngle = Angle.degrees 50
     , mouseDragPos = Nothing
     , mouseDown = False
+    , clickPosDebug = Point2d.origin
     }
         |> noCmds
 
@@ -78,37 +84,47 @@ type Msg
     = NoOp
     | MouseDragAt (Point2d Meters SceneCoords)
     | ToggleMouseDown Bool
+    | MouseClickAt (Point2d Meters SceneCoords)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
     case msg of 
         MouseDragAt sceneOffsetPos ->
-            { model 
-                | catFrame = 
-                    model.catFrame |> pointYAxisAt sceneOffsetPos 
-                , viewerAngle = 
-                    model.mouseDragPos
-                        |> Maybe.andThen (angleDiff sceneOffsetPos)
-                        |> Maybe.map (Quantity.plus model.viewerAngle)
-                        |> Maybe.withDefault model.viewerAngle
-                , mouseDragPos = Just sceneOffsetPos
-                , mouseDown = True
-            }
+            if not model.mouseDown then 
+                model |> noCmds 
+            else 
+                { model 
+                    | catFrame = model.catFrame |> pointYAxisAt sceneOffsetPos 
+                    , viewerAngle = 
+                        model.mouseDragPos
+                            |> Maybe.andThen (angleDiff (Frame2d.originPoint viewerFrame) sceneOffsetPos)
+                            |> Maybe.map (Quantity.plus model.viewerAngle)
+                            |> Maybe.withDefault model.viewerAngle
+                    , mouseDragPos = Just sceneOffsetPos
+                    , mouseDown = True
+                }
                 |> noCmds
 
         ToggleMouseDown isDown -> 
             { model | mouseDown = isDown, mouseDragPos = Nothing }
                 |> noCmds
 
+        MouseClickAt sceneOffsetPos -> 
+            { model 
+                | viewerPos = sceneOffsetPos |> Point2d.relativeTo (roomFrame model)
+                , clickPosDebug = sceneOffsetPos
+            }
+                |> noCmds
+
         _ ->
             model |> noCmds
 
 
-angleDiff : Point2d u c -> Point2d u c -> Maybe Angle
-angleDiff p1 p2 = 
+angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
+angleDiff pivot p1 p2 = 
     let
         getAngle p = 
-            Direction2d.from Point2d.origin p 
+            Direction2d.from pivot p 
                 |> Maybe.map Direction2d.toAngle
     in
         Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
@@ -139,50 +155,42 @@ view model =
             (El.html (svgContainer model)))
 
 
+-- TODO delete this
+sceneFrame : Frame2d Pixels TopLeftCoords { defines : SceneCoords }
+sceneFrame = 
+    Frame2d.atPoint (Point2d.pixels 
+        (constants.containerWidth / 2.0) 
+        (constants.containerHeight / 2.0))
+
+topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
+topLeftFrame = 
+    Frame2d.atOrigin
+        |> Frame2d.translateBy
+            (Vector2d.xy
+                (pixels <| -constants.containerWidth / 2.0)
+                (pixels <| constants.containerHeight / 2.0))
+        |> Frame2d.reverseY
+
+viewerFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
+viewerFrame = 
+    Frame2d.atOrigin
+        |> Frame2d.translateBy (Vector2d.meters 0.5 -0.6)
+        -- |> Frame2d.rotateAround Point2d.origin model.viewerAngle
+        -- |> Frame2d.translateBy model.viewerPos
+        -- |> Frame2d.relativeTo roomFrame
+
+roomFrame : Model -> Frame2d Meters SceneCoords { defines : SceneCoords }
+roomFrame model = 
+    viewerFrame
+        |> Frame2d.translateBy (Vector2d.reverse 
+            (Vector2d.from Point2d.origin model.viewerPos))
+        |> Frame2d.rotateAround (Frame2d.originPoint viewerFrame) 
+            (Quantity.negate model.viewerAngle)
+
 
 frameSandbox : Model -> Svg Msg 
 frameSandbox model = 
     let
-        outerFrame : Frame2d Pixels TopLeftCoords {}
-        outerFrame = 
-            Frame2d.atPoint Point2d.origin    
-
-        drawAxisLine op dir =
-            Svg.lineSegment2d [ Attr.stroke "green", Attr.strokeWidth "8" ] 
-                (LineSegment2d.fromPointAndVector op
-                    (Vector2d.withLength (pixels 100) dir)
-                )
-
-        drawFrame frame = 
-            Svg.g [] 
-                [ drawAxisLine (Frame2d.originPoint frame) (Frame2d.xDirection frame)
-                , drawAxisLine (Frame2d.originPoint frame) (Frame2d.yDirection frame)
-                ]
-
-        topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-        topLeftFrame = 
-            Frame2d.atOrigin
-                |> Frame2d.translateBy
-                    (Vector2d.xy
-                        (pixels <| -constants.containerWidth / 2.0)
-                        (pixels <| constants.containerHeight / 2.0))
-                |> Frame2d.reverseY
-
-        catFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
-        catFrame = 
-            Frame2d.atOrigin
-                -- |> Frame2d.rotateAround Point2d.origin model.viewerAngle
-                -- |> Frame2d.translateBy model.viewerPos
-                -- |> Frame2d.relativeTo roomFrame
-
-        roomFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
-        roomFrame = 
-            Frame2d.atOrigin
-                |> Frame2d.translateBy (Vector2d.reverse model.viewerPos)
-                |> Frame2d.rotateAround (Frame2d.originPoint catFrame) 
-                    (Quantity.negate model.viewerAngle)
-                |> Frame2d.relativeTo catFrame
-
         walls = 
             Polygon2d.singleLoop
                 [ Point2d.meters -2 -2 
@@ -190,7 +198,7 @@ frameSandbox model =
                 , Point2d.meters 2 2 
                 , Point2d.meters 2 -2 
                 ]
-                |> Polygon2d.placeIn roomFrame
+                |> Polygon2d.placeIn (roomFrame model)
 
         stamp stroke = 
             Svg.g [] 
@@ -203,64 +211,64 @@ frameSandbox model =
                 , Svg.circle2d [ Attr.fill "black" ]
                     (Circle2d.atOrigin (Length.meters 0.05))
                 ]
-
-        pixelsPerMeter = 
-            pixels 100 |> Quantity.per (Length.meters 1)
     in
         Svg.g [] 
             [ stamp "grey"
                 -- |> Svg.relativeTo topLeftFrame
             , stamp "purple"
-                |> Svg.placeIn roomFrame
+                |> Svg.placeIn (roomFrame model)
             , stamp "orange"
-                |> Svg.placeIn catFrame
+                |> Svg.placeIn viewerFrame
             , Svg.polygon2d 
                     [ Attr.strokeWidth "0.02" 
                     , Attr.fill "none"
                     , Attr.stroke "grey"
                     ]
                     walls
+            , Svg.circle2d
+                [ Attr.fill "red" ]
+                (Circle2d.atPoint model.clickPosDebug (Length.meters 0.05))
             ]
             |> Svg.at pixelsPerMeter
             |> Svg.relativeTo topLeftFrame
+
+
+pixelsPerMeter = 
+    pixels 100 |> Quantity.per (Length.meters 1)
     
 svgContainer : Model -> Html Msg
 svgContainer model =
-    Svg.svg 
-        [ Attr.width (constants.containerWidth |> String.fromFloat)
-        , Attr.height (constants.containerHeight |> String.fromFloat)
-        , Mouse.onDown (\_ -> ToggleMouseDown True)
-        , Mouse.onUp (\_ -> ToggleMouseDown False)
-        , Mouse.onMove (\event -> 
+    Html.div 
+        [ Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
+        , Pointer.onDown (\_ -> ToggleMouseDown True)
+        , Pointer.onUp (\_ -> ToggleMouseDown False |> Debug.log "mouse up!")
+        , Pointer.onLeave (\_ -> ToggleMouseDown False |> Debug.log "mouse left!")
+        , Pointer.onMove (\event -> 
             if model.mouseDown then 
-                MouseDragAt (mouseToSceneCoords sceneFrame event.offsetPos)
+                MouseDragAt (mouseToSceneCoords event.pointer.offsetPos)
             else 
                 NoOp)
         ]
-        [ frameSandbox model ]
-        -- [ diagram model |> svgToSceneCoords sceneFrame
-        -- ]
+        [ Svg.svg 
+            [ Attr.width (constants.containerWidth |> String.fromFloat)
+            , Attr.height (constants.containerHeight |> String.fromFloat)
+            ]
+            [ frameSandbox model ]
+            -- [ diagram model |> svgToSceneCoords sceneFrame
+            -- ]
+        ]
 
-mouseToSceneCoords : Frame2d Pixels globalC { defines : localC } -> (Float, Float) -> Point2d Meters localC
-mouseToSceneCoords localFrame (x, y) = 
+mouseToSceneCoords : (Float, Float) -> Point2d Meters SceneCoords
+mouseToSceneCoords (x, y) = 
     Point2d.pixels x y
-        |> Point2d.relativeTo localFrame
-        |> Point2d.mirrorAcross Axis2d.x
-        |> Convert.pointToMeters
-
+        |> Point2d.placeIn topLeftFrame
+        |> Point2d.at_ pixelsPerMeter
 
 svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
 svgToSceneCoords localFrame svg =
     svg 
         |> Svg.mirrorAcross Axis2d.x 
         |> Svg.placeIn localFrame
-
-
-sceneFrame : Frame2d Pixels TopLeftCoords { defines : SceneCoords }
-sceneFrame = 
-    Frame2d.atPoint (Point2d.pixels 
-        (constants.containerWidth / 2.0) 
-        (constants.containerHeight / 2.0))
 
 diagram : Model -> Svg Msg
 diagram model =
