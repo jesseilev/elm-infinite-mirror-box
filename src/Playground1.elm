@@ -174,7 +174,6 @@ topLeftFrame =
 viewerFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
 viewerFrame = 
     Frame2d.atOrigin
-        |> Frame2d.translateBy (Vector2d.meters 0.5 -0.6)
         -- |> Frame2d.rotateAround Point2d.origin model.viewerAngle
         -- |> Frame2d.translateBy model.viewerPos
         -- |> Frame2d.relativeTo roomFrame
@@ -228,6 +227,11 @@ frameSandbox model =
             , Svg.circle2d
                 [ Attr.fill "red" ]
                 (Circle2d.atPoint model.clickPosDebug (Length.meters 0.05))
+            , Svg.circle2d
+                [ Attr.fill "green" 
+                , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
+                ]
+                (Circle2d.atPoint (Point2d.meters -0.5 0.3) (Length.meters 0.1))
             ]
             |> Svg.at pixelsPerMeter
             |> Svg.relativeTo topLeftFrame
@@ -239,8 +243,7 @@ pixelsPerMeter =
 svgContainer : Model -> Html Msg
 svgContainer model =
     Html.div 
-        [ Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
-        , Pointer.onDown (\_ -> ToggleMouseDown True)
+        [ Pointer.onDown (\_ -> ToggleMouseDown True)
         , Pointer.onUp (\_ -> ToggleMouseDown False |> Debug.log "mouse up!")
         , Pointer.onLeave (\_ -> ToggleMouseDown False |> Debug.log "mouse left!")
         , Pointer.onMove (\event -> 
@@ -248,6 +251,7 @@ svgContainer model =
                 MouseDragAt (mouseToSceneCoords event.pointer.offsetPos)
             else 
                 NoOp)
+        -- , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
