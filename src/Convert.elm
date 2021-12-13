@@ -5,6 +5,7 @@ import Axis2d exposing (Axis2d)
 import Circle2d
 import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
+import Geometry.Svg as Svg
 import Html exposing (Html)
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
@@ -13,6 +14,7 @@ import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
+import Svg exposing (Svg)
 import Vector2d exposing (Vector2d)
 
 
@@ -62,11 +64,3 @@ polylineToPixels p =
     Polyline2d.segments p
         |> List.map (LineSegment2d.endPoint >> pointToPixels)
         |> Polyline2d.fromVertices
-
-
-
-mouseToScene : Frame2d Pixels globalC { defines : localC } -> (Float, Float) -> Point2d Meters localC
-mouseToScene containerFrame (x, y) = 
-    Point2d.pixels x y
-        |> Point2d.relativeTo containerFrame
-        |> pointToMeters
