@@ -11,7 +11,10 @@
 - when user successfully hits target, success animation plays
 
 ## Internal
-- compute 
+- compute reflection bounce path
+- 
+- model things so that the link between bounce path segments and sightline segments is organic and first class or something. this is too vague to be a todo other than like "spend some time thinking about this"
+- 
 
 ## Bugs
 
