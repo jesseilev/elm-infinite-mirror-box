@@ -172,7 +172,7 @@ svgContainer model =
         , Pointer.onLeave (\_ -> ToggleMouseDown False |> Debug.log "mouse left!")
         , Pointer.onMove (\event -> 
             if model.mouseDown then 
-                MouseDragAt (mouseToSceneCoords event.pointer.offsetPos)
+                MouseDragAt (mouseToSceneCoords model event.pointer.offsetPos)
             else 
                 NoOp)
         , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
@@ -186,7 +186,8 @@ svgContainer model =
             -- ]
         ]
 
-viewFrame clr = 
+frameDebugViz : String -> Svg Msg        
+frameDebugViz clr = 
     Svg.g [] 
         [ Svg.rectangle2d 
             [ Attr.stroke clr
@@ -210,17 +211,17 @@ viewScene model =
         tree pos = 
             Svg.circle2d
             [ Attr.fill "green" 
-            , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
+            , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
             ]
             (Circle2d.atPoint pos (Length.meters 0.1))
     in
     Svg.g [] 
-        [ viewFrame "grey"
-            -- |> Svg.relativeTo topLeftFrame
-        , viewFrame "purple"
+        [ frameDebugViz "purple"
             |> Svg.placeIn (roomFrame model)
-        , viewFrame "orange" 
+        , frameDebugViz "orange" 
             |> Svg.placeIn (viewerFrame model)
+        -- , frameDebugViz "grey"
+        --     |> Svg.relativeTo ((topLeftFrame model) |> Frame2d.translateBy (Vector2d.pixels -100 -100))
         , Svg.polygon2d 
                 [ Attr.strokeWidth "0.02" 
                 , Attr.fill "none"
@@ -240,10 +241,8 @@ viewScene model =
             (projectedSightline model)
         , viewReflectedRooms model
         ]
-        |> Svg.at pixelsPerMeter
-        |> Svg.scaleAbout Point2d.origin model.zoomScale
-        |> Svg.relativeTo topLeftFrame
-
+        |> Svg.at (pixelsPerMeter model)
+        |> Svg.relativeTo (topLeftFrame model)
 
 reflectedRooms : LineSegment2d u c -> Polygon2d u c -> List (Polygon2d u c) -> List (Polygon2d u c)
 reflectedRooms sightline room roomsAcc = 
@@ -318,11 +317,13 @@ viewReflectedRooms model =
 
 -- Frame, Units, Conversions --
 
-pixelsPerMeter = 
-    pixels 100 |> Quantity.per (Length.meters 1)
+pixelsPerMeter model = 
+    pixels 100 
+        |> Quantity.per (Length.meters 1)
+        |> Quantity.multiplyBy model.zoomScale
 
-topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-topLeftFrame = 
+topLeftFrame : Model -> Frame2d Pixels SceneCoords { defines : TopLeftCoords }
+topLeftFrame model = 
     Frame2d.atOrigin
         |> Frame2d.translateBy
             (Vector2d.xy
@@ -353,11 +354,11 @@ sceneFrame =
         (constants.containerWidth / 2.0) 
         (constants.containerHeight / 2.0))
 
-mouseToSceneCoords : (Float, Float) -> Point2d Meters SceneCoords
-mouseToSceneCoords (x, y) = 
+mouseToSceneCoords : Model -> (Float, Float) -> Point2d Meters SceneCoords
+mouseToSceneCoords model (x, y) = 
     Point2d.pixels x y
-        |> Point2d.placeIn topLeftFrame
-        |> Point2d.at_ pixelsPerMeter
+        |> Point2d.placeIn (topLeftFrame model)
+        |> Point2d.at_ (pixelsPerMeter model)
 
 svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
 svgToSceneCoords localFrame svg =
