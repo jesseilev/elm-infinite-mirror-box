@@ -236,10 +236,10 @@ reflectedRooms sightline room roomsAcc =
                 (room :: roomsAcc))
         |> Maybe.withDefault (room :: roomsAcc)
 
-type alias Intersection u c = 
-    { axis : Axis2d u c 
-    , wall : LineSegment2d u c 
-    , point : Point2d u c 
+type alias Intersection = 
+    { axis : Axis
+    , wall : LineSegment
+    , point : Point
     }
 
 findIntersection : LineSegment2d u c -> Polygon2d u c -> Maybe (Intersection u c)
@@ -294,9 +294,6 @@ viewReflectedRooms model =
             |> Svg.g [] 
     
 
-
-
-
 -- Frame, Units, Conversions --
 
 pixelsPerMeter = 
@@ -310,6 +307,68 @@ topLeftFrame =
                 (pixels <| -constants.containerWidth / 2.0)
                 (pixels <| constants.containerHeight / 2.0))
         |> Frame2d.reverseY
+
+
+type alias Point = Point2d Meters SceneCoords
+type alias LineSegment = LineSegment2d Meters SceneCoords
+type alias Polygon = Polygon2d Meters SceneCoords
+type alias Polyline = Polyline2d Meters SceneCoords
+type alias Axis = Axis2d Meters SceneCoords
+
+type ApparentRoom 
+    = ActualRoom Room
+    | ReflectionOf ApparentRoom Intersection
+
+type alias Room = 
+    { roomShape : Polygon }
+
+actual model = ActualRoom { roomShape = model.roomShape }
+
+firstReflection model =
+    ReflectionOf (actual model) intersection1
+
+secondReflection model = 
+    ReflectionOf (firstReflection model) intersection2
+
+apparentRoomShape : ApparentRoom -> Polygon
+apparentRoomShape ar = 
+    case ar of 
+        ActualRoom room -> room.roomShape
+        ReflectionOf twinRoom inter -> 
+            apparentRoomShape twinRoom
+                |> Polygon2d.mirrorAcross inter.axis
+
+{-
+sightlinePathSegments : ApparentRoom -> List LineSegment
+sightlinePathSegments ar = 
+    case ar of 
+        ActualRoom room -> 
+            -- TODO the line from viewerPos to the first intersection
+        ReflectionOf _ inter ->
+            -- TODO the previous lines plus the line from inter to the next intersection
+-}
+
+type alias Roome = 
+    { wallShape : Polygon2d Meters SceneCoords 
+    , sightStart : Point2d Meters SceneCoords
+    , sightEnd : SightEnd
+    }
+
+type SightEnd
+    = TooFar (Point2d Meters SceneCoords)
+    | Bounce Intersection Roome
+
+
+type alias Foo =
+    { sightStart : Point2d Meters SceneCoords 
+    , roomShape : Polygon2d Meters SceneCoords
+    , bounces : List Bounce 
+    }
+
+type alias Bounce =
+    { intersection : Intersection Meters SceneCoords 
+    , reflection : }
+
 
 viewerFrame : Model -> Frame2d Meters SceneCoords { defines : SceneCoords }
 viewerFrame model = 
