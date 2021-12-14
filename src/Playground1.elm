@@ -15,6 +15,7 @@ import Html exposing (Html)
 import Html.Events
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Pointer as Pointer
+import Html.Events.Extra.Wheel as Wheel
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import Maybe.Extra as Maybe
@@ -33,6 +34,7 @@ import Axis2d exposing (relativeTo)
 import Pixels exposing (pixel)
 import String exposing (lines)
 import String exposing (trim)
+import Element.Font exposing (tabularNumbers)
 
 main = 
     Browser.element
@@ -56,6 +58,7 @@ type alias Model =
     , mouseDragPos : Maybe (Point2d Meters SceneCoords)
     , mouseDown : Bool
     , clickPosDebug : Point2d Meters SceneCoords
+    , zoomScale : Float
     }
 
 
@@ -74,6 +77,7 @@ init _ =
     , mouseDragPos = Nothing
     , mouseDown = False
     , clickPosDebug = Point2d.origin
+    , zoomScale = 1
     }
         |> noCmds
 
@@ -83,6 +87,7 @@ type Msg
     | MouseDragAt (Point2d Meters SceneCoords)
     | ToggleMouseDown Bool
     | MouseClickAt (Point2d Meters SceneCoords)
+    | AdjustZoom Float
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
@@ -111,6 +116,12 @@ update msg model =
             { model 
                 | viewerPos = sceneOffsetPos |> Point2d.relativeTo (roomFrame model)
                 , clickPosDebug = sceneOffsetPos
+            }
+                |> noCmds
+        
+        AdjustZoom deltaY ->
+            { model  
+                | zoomScale = model.zoomScale * (1.1 ^ (sign deltaY))
             }
                 |> noCmds
 
@@ -164,6 +175,7 @@ svgContainer model =
                 MouseDragAt (mouseToSceneCoords event.pointer.offsetPos)
             else 
                 NoOp)
+        , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
@@ -194,6 +206,14 @@ projectedSightline model =
         
 viewScene : Model -> Svg Msg 
 viewScene model = 
+    let 
+        tree pos = 
+            Svg.circle2d
+            [ Attr.fill "green" 
+            , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
+            ]
+            (Circle2d.atPoint pos (Length.meters 0.1))
+    in
     Svg.g [] 
         [ viewFrame "grey"
             -- |> Svg.relativeTo topLeftFrame
@@ -210,11 +230,9 @@ viewScene model =
         , Svg.circle2d
             [ Attr.fill "red" ]
             (Circle2d.atPoint model.clickPosDebug (Length.meters 0.05))
-        , Svg.circle2d
-            [ Attr.fill "green" 
-            , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords event.offsetPos))
-            ]
-            (Circle2d.atPoint (Point2d.meters -0.5 0.3) (Length.meters 0.1))
+        , tree (Point2d.meters -0.5 0.3)
+        , tree (Point2d.meters 0.2 0.9)
+        , tree (Point2d.meters 1.1 -0.4)
         , Svg.lineSegment2d
             [ Attr.stroke "cyan" 
             , Attr.strokeWidth "0.02"
@@ -223,6 +241,7 @@ viewScene model =
         , viewReflectedRooms model
         ]
         |> Svg.at pixelsPerMeter
+        |> Svg.scaleAbout Point2d.origin model.zoomScale
         |> Svg.relativeTo topLeftFrame
 
 
@@ -300,7 +319,7 @@ viewReflectedRooms model =
 -- Frame, Units, Conversions --
 
 pixelsPerMeter = 
-    pixels 30 |> Quantity.per (Length.meters 1)
+    pixels 100 |> Quantity.per (Length.meters 1)
 
 topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
 topLeftFrame = 
@@ -478,3 +497,7 @@ maybePair ma mb =
     case (ma, mb) of 
         (Just x, Just y) -> Just (x, y)
         _ -> Nothing
+
+sign : number -> number
+sign n = 
+    if n < 0 then -1 else 1
