@@ -4,11 +4,13 @@ import Angle exposing (Angle)
 import Axis2d exposing (Axis2d)
 import Browser
 import Circle2d
+import Color
 import Convert
 import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Border as Border
 import Element.Events
+import VirtualDom
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
@@ -30,12 +32,10 @@ import Vector2d exposing (Vector2d)
 import Convert exposing (lengthToPixels)
 import Rectangle2d exposing (Rectangle2d)
 import SketchPlane3d exposing (toPlane)
-import Axis2d exposing (relativeTo)
-import Pixels exposing (pixel)
-import String exposing (lines)
-import String exposing (trim)
-import Element.Font exposing (tabularNumbers)
-
+import TypedSvg
+import TypedSvg.Attributes
+import TypedSvg.Attributes.InPx
+import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 main = 
     Browser.element
         { init = init
@@ -83,7 +83,7 @@ init _ =
             , Point2d.meters -1.5 2.25
             ]
     , targetDistance = Length.meters 15.0
-    , viewerPos = Point2d.meters 1.0 -0.5
+    , viewerPos = Point2d.meters 0.3 -0.7
     , viewerAngle = Angle.degrees 50
     , mouseDragPos = Nothing
     , mouseDown = False
@@ -192,27 +192,51 @@ svgContainer model =
             [ viewScene model ]
         ]
 
+roomItem : Model -> String -> Point -> Svg Msg
+roomItem model emoji pos = 
+    let
+        fontSize = 0.3
+    in
+    
+    Svg.g [] 
+        [ Svg.circle2d
+            [ Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
+            , TypedSvg.Attributes.fill PaintNone -- <| Paint Color.green  
+            ]
+            (Circle2d.atOrigin (Length.meters 0.2))
+        , Svg.text_ 
+            [ Attr.fontSize (String.fromFloat fontSize)
+            , Attr.x (-0.5 * fontSize |> String.fromFloat)
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ Svg.text emoji ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+        ]
+        |> Svg.translateBy (Vector2d.from Point2d.origin pos)
+
 viewScene : Model -> Svg Msg 
 viewScene model = 
-    let 
-        tree pos = 
-            Svg.circle2d
-            [ Attr.fill "green" 
-            , Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            ]
-            (Circle2d.atPoint pos (Length.meters 0.1))
-    in
     Svg.g [] 
         [ viewReflectedRooms model
         , Svg.polygon2d 
-                [ Attr.strokeWidth "0.02" 
-                , Attr.fill "none"
-                , Attr.stroke "black"
-                ]
-                (model.roomShape |> Polygon2d.placeIn (roomFrame model))
-        , tree (Point2d.meters -0.5 0.3)
-        , tree (Point2d.meters 0.2 0.9)
-        , tree (Point2d.meters 1.1 -0.4)
+            [ Attr.fill "none"
+            , Attr.strokeWidth "0.1"
+            , VirtualDom.attribute "vector-effect" "non-scaling-stroke"
+            , Attr.stroke "black"
+            ]
+            (model.roomShape |> Polygon2d.placeIn (roomFrame model))
+        , roomItem model emojis.roundTree (Point2d.meters -0.5 0.3)
+        , roomItem model emojis.roundTree (Point2d.meters 0.2 0.9)
+        , roomItem model emojis.pineTree (Point2d.meters 1.1 -0.4)
+        , roomItem model emojis.cat model.viewerPos
+        , Svg.text_ 
+            [ Attr.x "0"
+            , Attr.y "0"
+            -- , Attr.width "30"
+            -- , Attr.height "30"
+            , Attr.fill "red" 
+            ] 
+            [ Svg.text "T" ]
         , Svg.lineSegment2d
             [ Attr.stroke "cyan" 
             , Attr.strokeWidth "0.02"
@@ -229,6 +253,12 @@ viewScene model =
         |> Svg.at (pixelsPerMeter model)
         |> Svg.relativeTo (topLeftFrame model)
 
+emojis = 
+    { roundTree = "🌳"
+    , pineTree = "🌲"
+    , palmTree = "🌴"
+    , cat = "🐈‍⬛"
+    }
 
 viewReflectedRooms : Model -> Svg Msg 
 viewReflectedRooms model = 
@@ -276,6 +306,7 @@ frameDebugViz clr =
         [ Svg.rectangle2d 
             [ Attr.stroke clr
             , Attr.strokeWidth "0.02" -- in meters. TODO use typedsvg
+            , VirtualDom.attribute "vector-effect" "non-scaling-stroke"
             , Attr.fill "none" 
             ]
             (Rectangle2d.from Point2d.origin (Point2d.meters 0.5 1.0))
