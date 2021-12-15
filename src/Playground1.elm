@@ -244,7 +244,7 @@ viewScene model =
         |> Svg.at (pixelsPerMeter model)
         |> Svg.relativeTo (topLeftFrame model)
 
-reflectedRooms : LineSegment2d u c -> Polygon2d u c -> List (Polygon2d u c) -> List (Polygon2d u c)
+reflectedRooms : LineSegment -> Polygon -> List Polygon -> List Polygon
 reflectedRooms sightline room roomsAcc = 
     findIntersection sightline room
         |> Maybe.map (\inter -> 
@@ -260,7 +260,7 @@ type alias Intersection =
     , point : Point
     }
 
-findIntersection : LineSegment2d u c -> Polygon2d u c -> Maybe (Intersection u c)
+findIntersection : LineSegment2d Meters SceneCoords -> Polygon2d Meters SceneCoords -> Maybe Intersection
 findIntersection sightline roomShape =
     let
         -- "trim" off the very beginning of the sightline by shrinking it slightly
@@ -344,11 +344,11 @@ type alias Room =
 
 actual model = ActualRoom { roomShape = model.roomShape }
 
-firstReflection model =
+firstReflection intersection1 model =
     ReflectionOf (actual model) intersection1
 
-secondReflection model = 
-    ReflectionOf (firstReflection model) intersection2
+secondReflection intersection1 intersection2 model = 
+    ReflectionOf (firstReflection intersection1 model) intersection2
 
 apparentRoomShape : ApparentRoom -> Polygon
 apparentRoomShape ar = 
@@ -379,15 +379,16 @@ type SightEnd
     | Bounce Intersection Roome
 
 
-type alias Foo =
-    { sightStart : Point2d Meters SceneCoords 
-    , roomShape : Polygon2d Meters SceneCoords
-    , bounces : List Bounce 
-    }
+-- type alias Foo =
+--     { sightStart : Point2d Meters SceneCoords 
+--     , roomShape : Polygon2d Meters SceneCoords
+--     , bounces : List Bounce 
+--     }
 
-type alias Bounce =
-    { intersection : Intersection Meters SceneCoords 
-    , reflection : }
+-- type alias Bounce =
+--     { intersection : Intersection
+--     , reflection : 
+--     }
 
 
 viewerFrame : Model -> Frame2d Meters SceneCoords { defines : SceneCoords }
