@@ -240,6 +240,12 @@ viewScene model =
             ]
             (projectedSightline model)
         , viewReflectedRooms model
+        , bouncePath model 
+            |> Svg.polyline2d
+                [ Attr.fill "none"
+                , Attr.stroke "red"
+                , Attr.strokeWidth "0.03"
+                ]
         ]
         |> Svg.at (pixelsPerMeter model)
         |> Svg.relativeTo (topLeftFrame model)
@@ -496,59 +502,32 @@ pointYAxisAt target frame =
     in 
         Frame2d.rotateBy angleDifference frame
 
-bouncePath : Polygon2d u c -> Quantity Float u -> Frame2d u c d -> Polyline2d u c
-bouncePath wallShape gazeDistance frame = 
+bouncePath : Model -> Polyline
+bouncePath model = 
     let 
-        position = 
-            Frame2d.originPoint frame
+        sightline = 
+            projectedSightline model
 
-        gazeVector = 
-            Vector2d.withLength gazeDistance (Frame2d.yDirection frame)
-
-        endPoint =
-            Point2d.translateBy gazeVector position
-
-        gazePathStraight = 
-            LineSegment2d.from position endPoint
-
-        bounceM : Maybe { point : Point2d u c, wall: LineSegment2d u c }
-        bounceM = 
-            wallShape
-                |> Polygon2d.edges
-                |> List.map (\e -> 
-                    LineSegment2d.intersectionPoint gazePathStraight e 
-                        |> Maybe.map (\p -> { point = p, wall = e }))
-                |> Maybe.orList
-
-        -- gazePathTail =
-        --     bounceM
-        --         |> Maybe.andThen (\b -> LineSegment2d.direction b.wall |> Maybe.map (\dir -> (b, dir)))
-        --         |> Maybe.map (\(b, wallDirection) -> 
-        --             LineSegment2d.from b.point endPoint
-        --                 |> LineSegment2d.mirrorAcross (Axis2d.through b.point wallDirection))
-        
-        recurse bounce = 
-            let 
-                newDistance = 
-                    gazeDistance |> Quantity.minus (Point2d.distanceFrom position bounce.point)
-
-                wallDirection = 
-                    LineSegment2d.direction bounce.wall 
-                        |> Maybe.withDefault Direction2d.y -- todo this is bad
-
-                newDirection = 
-                    Frame2d.yDirection frame
-                        |> Direction2d.mirrorAcross (Axis2d.through bounce.point wallDirection)
-
-                newFrame = 
-                    Frame2d.withYDirection newDirection bounce.point
-            in 
-                bouncePath wallShape newDistance newFrame
+        recurseModel bounce = 
+            { model 
+                | viewerPos = bounce.point
+                , targetDistance = 
+                    model.targetDistance 
+                        |> Quantity.minus (Point2d.distanceFrom bounce.point model.viewerPos)
+                , roomShape = 
+                    model.roomShape
+                        |> Polygon2d.mirrorAcross bounce.axis
+            }
 
         vertices = 
-            bounceM 
-                |> Maybe.map (\b -> b.point :: (Polyline2d.vertices (recurse b)))
-                |> Maybe.withDefault [ endPoint ]
+            findIntersection sightline model.roomShape 
+                |> Maybe.map (\inter -> 
+                    recurseModel inter
+                        |> bouncePath
+                        |> Polyline2d.mirrorAcross inter.axis
+                        |> Polyline2d.vertices
+                        |> (\vs -> model.viewerPos :: vs))
+                |> Maybe.withDefault [ model.viewerPos, (LineSegment2d.endPoint sightline) ]
     in
         Polyline2d.fromVertices vertices
 
