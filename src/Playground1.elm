@@ -64,9 +64,10 @@ type alias Axis = Axis2d Meters SceneCoords
 
 type alias Model = 
     { roomShape : Polygon
-    , targetDistance : Quantity Float Meters
     , viewerPos : Point
     , viewerAngle : Angle
+    , sightDistance : Quantity Float Meters
+    , targetPos : Point
     , mouseDragPos : Maybe Point
     , mouseDown : Bool
     , clickPosDebug : Point
@@ -82,9 +83,10 @@ init _ =
             , Point2d.meters 2.25 1.0
             , Point2d.meters -1.5 2.25
             ]
-    , targetDistance = Length.meters 15.0
     , viewerPos = Point2d.meters 0.3 -0.7
     , viewerAngle = Angle.degrees 50
+    , sightDistance = Length.meters 8.0
+    , targetPos = Point2d.meters 1.5 0.2
     , mouseDragPos = Nothing
     , mouseDown = False
     , clickPosDebug = Point2d.origin
@@ -195,15 +197,16 @@ svgContainer model =
 roomItem : Model -> String -> Point -> Svg Msg
 roomItem model emoji pos = 
     let
-        fontSize = 0.3
+        fontSize = 0.25
     in
-    
     Svg.g [] 
         [ Svg.circle2d
             [ Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            , TypedSvg.Attributes.fill PaintNone -- <| Paint Color.green  
+            , TypedSvg.Attributes.fill <| Paint Color.white
+            , Attr.strokeWidth "0.01"
+            , Attr.stroke "lightGrey"
             ]
-            (Circle2d.atOrigin (Length.meters 0.2))
+            (Circle2d.atOrigin (Length.meters fontSize))
         , Svg.text_ 
             [ Attr.fontSize (String.fromFloat fontSize)
             , Attr.x (-0.5 * fontSize |> String.fromFloat)
@@ -220,34 +223,22 @@ viewScene model =
         [ viewReflectedRooms model
         , Svg.polygon2d 
             [ Attr.fill "none"
-            , Attr.strokeWidth "0.1"
-            , VirtualDom.attribute "vector-effect" "non-scaling-stroke"
+            , Attr.strokeWidth "0.02"
             , Attr.stroke "black"
             ]
             (model.roomShape |> Polygon2d.placeIn (roomFrame model))
+        , bouncePath model 
+            |> Svg.polyline2d
+                [ Attr.fill "none"
+                , Attr.stroke "orange"
+                , Attr.strokeWidth "0.02"
+                , Attr.strokeDasharray "0.1"
+                ]
         , roomItem model emojis.roundTree (Point2d.meters -0.5 0.3)
         , roomItem model emojis.roundTree (Point2d.meters 0.2 0.9)
         , roomItem model emojis.pineTree (Point2d.meters 1.1 -0.4)
         , roomItem model emojis.cat model.viewerPos
-        , Svg.text_ 
-            [ Attr.x "0"
-            , Attr.y "0"
-            -- , Attr.width "30"
-            -- , Attr.height "30"
-            , Attr.fill "red" 
-            ] 
-            [ Svg.text "T" ]
-        , Svg.lineSegment2d
-            [ Attr.stroke "cyan" 
-            , Attr.strokeWidth "0.02"
-            ]
-            (projectedSightline model)
-        , bouncePath model 
-            |> Svg.polyline2d
-                [ Attr.fill "none"
-                , Attr.stroke "blue"
-                , Attr.strokeWidth "0.02"
-                ]
+        , roomItem model emojis.parrot model.targetPos
         -- , viewDebugStuff model
         ]
         |> Svg.at (pixelsPerMeter model)
@@ -258,6 +249,7 @@ emojis =
     , pineTree = "🌲"
     , palmTree = "🌴"
     , cat = "🐈‍⬛"
+    , parrot = "🦜"
     }
 
 viewReflectedRooms : Model -> Svg Msg 
@@ -385,8 +377,8 @@ bouncePath model =
         recurseModel bounce = 
             { model 
                 | viewerPos = bounce.point
-                , targetDistance = 
-                    model.targetDistance 
+                , sightDistance = 
+                    model.sightDistance 
                         |> Quantity.minus (Point2d.distanceFrom bounce.point model.viewerPos)
                 , roomShape = 
                     model.roomShape
@@ -422,7 +414,7 @@ sign n =
 projectedSightline : Model -> LineSegment2d Meters SceneCoords
 projectedSightline model =
     LineSegment2d.fromPointAndVector model.viewerPos
-        (Vector2d.withLength model.targetDistance 
+        (Vector2d.withLength model.sightDistance 
             (Frame2d.yDirection (viewerFrame model)))
         
 
