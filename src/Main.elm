@@ -29,9 +29,9 @@ import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
 import RayPath exposing (RayPath)
+import Room exposing (Model)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import Vector2d exposing (Vector2d)
 import Convert exposing (lengthToPixels)
 import Rectangle2d exposing (Rectangle2d)
 import SketchPlane3d exposing (toPlane)
@@ -39,8 +39,9 @@ import TypedSvg
 import TypedSvg.Attributes
 import TypedSvg.Attributes.InPx
 import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
-import Types exposing (..)
+import Shared exposing (..)
 import String exposing (startsWith)
+import Vector2d exposing (Vector2d)
 
 
 main = 
@@ -54,11 +55,7 @@ main =
 -- MODEL --
 
 type alias Model = 
-    { roomShape : Polygon
-    , viewerPos : Point
-    , viewerAngle : Angle
-    , sightDistance : Quantity Float Meters
-    , targetPos : Point
+    { room : Room.Model
     , mouseDragPos : Maybe Point
     , mouseDown : Bool
     , clickPosDebug : Point
@@ -68,21 +65,11 @@ type alias Model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    { roomShape = 
-        Polygon2d.singleLoop 
-            [ Point2d.meters -2.0 -2.0
-            , Point2d.meters 2.0 -1.0
-            , Point2d.meters 2.25 1.0
-            , Point2d.meters -1.5 2.25
-            ]
-    , viewerPos = Point2d.meters 0.3 -0.7
-    , viewerAngle = Angle.degrees 50
-    , sightDistance = Length.meters 18.0
-    , targetPos = Point2d.meters 1.5 0.2
+    { room = Room.init1
     , mouseDragPos = Nothing
     , mouseDown = False
     , clickPosDebug = Point2d.origin
-    , zoomScale = 1
+    , zoomScale = 0.3
     , animationStage = Just 0
     }
         |> noCmds
@@ -96,6 +83,7 @@ type Msg
     | ToggleMouseDown Bool
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
+    | RoomMsg Room.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
@@ -105,12 +93,11 @@ update msg model =
                 model |> noCmds 
             else 
                 { model 
-                    | viewerAngle = 
+                    | room = 
                         model.mouseDragPos
-                            |> Maybe.andThen 
-                                (angleDiff (Frame2d.originPoint (viewerFrame model)) mousePosInScene)
-                            |> Maybe.map (Quantity.plus model.viewerAngle)
-                            |> Maybe.withDefault model.viewerAngle
+                            |> Maybe.map (\prevMouse -> 
+                                Room.update (Room.mouseDragMsg prevMouse mousePosInScene) model.room)
+                            |> Maybe.withDefault model.room
                     , mouseDragPos = Just mousePosInScene
                     , mouseDown = True
                 }
@@ -148,11 +135,6 @@ subscriptions _ =
 
 -- VIEW --
 
-constants =
-    { containerWidth = 500 
-    , containerHeight = 500 
-    }
-
 view : Model -> Html Msg
 view model = 
     El.layout 
@@ -186,7 +168,10 @@ svgContainer model =
             [ Attr.width (constants.containerWidth |> String.fromFloat)
             , Attr.height (constants.containerHeight |> String.fromFloat)
             ]
-            [ viewScene model ]
+            [ Room.view model.animationStage model.room 
+                |> Svg.map RoomMsg
+            ]
+        , Html.text (model.mouseDragPos |> Maybe.map (\_ -> "dragging") |> Maybe.withDefault "no drag")
         ]
 
 roomItem : Model -> String -> Point -> Svg Msg
@@ -212,100 +197,6 @@ roomItem model emoji pos =
         ]
         |> Svg.translateBy (Vector2d.from Point2d.origin pos)
 
-viewScene : Model -> Svg Msg 
-viewScene model = 
-    Svg.g [] 
-        [ viewReflectedRooms model
-        , Svg.polygon2d 
-            [ Attr.fill "none"
-            , Attr.strokeWidth "0.02"
-            , Attr.stroke "black"
-            ]
-            (model.roomShape |> Polygon2d.placeIn (roomFrame model))
-        , RayPath.fromRoomAndProjectedPath model.roomShape (projectedSightline model)
-            |> (\raypath -> 
-                model.animationStage 
-                    |> Maybe.map (viewPathUnfoldAnimation model raypath)
-                    |> Maybe.withDefault (viewRayPath model.viewerPos raypath))
-        , roomItem model emojis.roundTree (Point2d.meters -0.5 0.3)
-        , roomItem model emojis.roundTree (Point2d.meters 0.2 0.9)
-        , roomItem model emojis.pineTree (Point2d.meters 1.1 -0.4)
-        , roomItem model emojis.cat model.viewerPos
-        , roomItem model emojis.parrot model.targetPos
-        -- , viewDebugStuff model
-        ]
-        |> Svg.at (pixelsPerMeter model)
-        |> Svg.relativeTo (topLeftFrame model)
-
-viewRayPath : Point -> RayPath -> Svg Msg 
-viewRayPath viewerPos rp = 
-    rp
-        |> RayPath.vertices
-        |> (\vs -> viewerPos :: vs)
-        |> Polyline2d.fromVertices
-        |> Svg.polyline2d
-            [ Attr.fill "none"
-            , Attr.stroke "black"
-            , Attr.strokeWidth "0.05"
-            , Attr.strokeDasharray "0.05"
-            ]
-
-viewPathUnfoldAnimation : Model -> RayPath -> Int -> Svg Msg 
-viewPathUnfoldAnimation model rp stage = 
-    rp
-        |> RayPath.unfold
-        |> Array.fromList
-        |> Array.get stage
-        |> Maybe.map (viewRayPath model.viewerPos)
-        |> Maybe.withDefault (Svg.g [] [])
-
-emojis = 
-    { roundTree = "🌳"
-    , pineTree = "🌲"
-    , palmTree = "🌴"
-    , cat = "🐈‍⬛"
-    , parrot = "🦜"
-    }
-
-viewReflectedRooms : Model -> Svg Msg 
-viewReflectedRooms model = 
-    let
-        reflectedRoom mirrorWall = 
-            model.roomShape 
-                |> Polygon2d.mirrorAcross mirrorWall.axis
-        
-        wallM = 
-            Polygon2d.edges model.roomShape
-                |> List.head
-                |> Maybe.andThen mkWall
-
-        mkWall : LineSegment2d Meters SceneCoords -> Maybe { wall : LineSegment2d Meters SceneCoords, axis : Axis2d Meters SceneCoords }
-        mkWall line = 
-            LineSegment2d.direction line
-                |> Maybe.map (Axis2d.through (LineSegment2d.startPoint line))
-                |> Maybe.map (\a -> { wall = line, axis = a})
-    in
-        reflectedRooms (projectedSightline model) model.roomShape []
-            |> List.map (Svg.polygon2d 
-                [ Attr.fill "none"
-                , Attr.stroke "grey"
-                , Attr.strokeWidth "0.02" 
-                ])
-            |> Svg.g [] 
-
-viewDebugStuff : Model -> Svg Msg 
-viewDebugStuff model = 
-    Svg.g []
-        [ frameDebugViz "purple"
-            |> Svg.placeIn (roomFrame model)
-        , frameDebugViz "orange" 
-            |> Svg.placeIn (viewerFrame model)
-        -- , frameDebugViz "grey"
-        --     |> Svg.relativeTo ((topLeftFrame model) |> Frame2d.translateBy (Vector2d.pixels -100 -100))
-        , Svg.circle2d
-            [ Attr.fill "red" ]
-            (Circle2d.atPoint model.clickPosDebug (Length.meters 0.05))
-        ]
 
 frameDebugViz : String -> Svg Msg        
 frameDebugViz clr = 
@@ -339,22 +230,6 @@ topLeftFrame model =
                 (pixels <| constants.containerHeight / 2.0))
         |> Frame2d.reverseY
 
-viewerFrame : Model -> Frame2d Meters SceneCoords { defines : SceneCoords }
-viewerFrame model = 
-    roomFrame model
-        |> Frame2d.rotateAround Point2d.origin model.viewerAngle
-        |> Frame2d.translateBy (Vector2d.from Point2d.origin model.viewerPos)
-        |> Frame2d.relativeTo (roomFrame model)
-
-roomFrame : Model -> Frame2d Meters SceneCoords { defines : SceneCoords }
-roomFrame model = 
-    Frame2d.atOrigin
-    -- viewerFrame model
-        -- |> Frame2d.translateBy (Vector2d.reverse 
-        --     (Vector2d.from Point2d.origin model.viewerPos))
-        -- |> Frame2d.rotateAround (Frame2d.originPoint <| viewerFrame model) 
-        --     (Quantity.negate model.viewerAngle)
-
 mouseToSceneCoords : Model -> (Float, Float) -> Point2d Meters SceneCoords
 mouseToSceneCoords model (x, y) = 
     Point2d.pixels x y
@@ -383,36 +258,6 @@ pointYAxisAt target frame =
     in 
         Frame2d.rotateBy angleDifference frame
 
-bouncePath : Model -> Polyline
-bouncePath model = 
-    let 
-        sightline = 
-            projectedSightline model
-
-        recurseModel bounce = 
-            { model 
-                | viewerPos = bounce.point
-                , sightDistance = 
-                    model.sightDistance 
-                        |> Quantity.minus (Point2d.distanceFrom bounce.point model.viewerPos)
-                , roomShape = 
-                    model.roomShape
-                        |> Polygon2d.mirrorAcross bounce.axis
-            }
-
-        vertices = 
-            findIntersection sightline model.roomShape 
-                |> Maybe.map (\inter -> 
-                    recurseModel inter
-                        |> bouncePath
-                        |> Polyline2d.mirrorAcross inter.axis
-                        |> Polyline2d.vertices
-                        |> (\vs -> model.viewerPos :: vs))
-                |> Maybe.withDefault [ model.viewerPos, (LineSegment2d.endPoint sightline) ]
-    in
-        Polyline2d.fromVertices vertices
-
-
 maybePair : Maybe a -> Maybe b -> Maybe (a, b)
 maybePair ma mb = 
     case (ma, mb) of 
@@ -426,200 +271,5 @@ sign n =
 
 -- COMPUTING STUFF --
 
-projectedSightline : Model -> LineSegment2d Meters SceneCoords
-projectedSightline model =
-    LineSegment2d.fromPointAndVector model.viewerPos
-        (Vector2d.withLength model.sightDistance 
-            (Frame2d.yDirection (viewerFrame model)))
-        
-
-findIntersection : LineSegment2d Meters SceneCoords -> Polygon2d Meters SceneCoords -> Maybe Intersection
-findIntersection sightline roomShape =
-    let
-        -- "trim" off the very beginning of the sightline by shrinking it slightly
-        -- we dont want to count the start point as an intersection
-        -- which will happen for all recursive calls since the sightline will start on a wall
-        trimmedSightline = 
-            LineSegment2d.scaleAbout (LineSegment2d.endPoint sightline) 0.999 sightline    
-    in
-    Polygon2d.edges roomShape
-        |> List.map (\e -> 
-            (LineSegment2d.intersectionPoint trimmedSightline e
-                |> Maybe.map (Tuple.pair e)))
-        |> Maybe.orList
-        |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
-        |> Maybe.map (\(wall, point, dir) -> 
-            { wall = wall, point = point, axis = Axis2d.withDirection dir point })
 
 
-reflectedRooms : LineSegment -> Polygon -> List Polygon -> List Polygon
-reflectedRooms sightline room roomsAcc = 
-    findIntersection sightline room
-        |> Maybe.map (\inter -> 
-            reflectedRooms 
-                (LineSegment2d.from inter.point (LineSegment2d.endPoint sightline))
-                (room |> Polygon2d.mirrorAcross inter.axis)
-                (room :: roomsAcc))
-        |> Maybe.withDefault (room :: roomsAcc)
-
-type alias Intersection = 
-    { axis : Axis
-    , wall : LineSegment
-    , point : Point
-    }
-
-angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
-angleDiff pivot p1 p2 = 
-    let
-        getAngle p = 
-            Direction2d.from pivot p 
-                |> Maybe.map Direction2d.toAngle
-    in
-        Maybe.map2 Quantity.difference (getAngle p1) (getAngle p2)
-
-
-
- -- SKETCHING NEW TYPES -- 
-
-
-type alias SightPath =
-    { start : Point 
-    , bounces : List MirrorBounce 
-    , end : Point 
-    }
-
-type alias PathSegment = 
-    { real : LineSegment 
-    , projected : LineSegment 
-    }
-
-startSegment : Point -> Point -> PathSegment
-startSegment startP bounceP =
-    let line = LineSegment2d.from startP bounceP in
-    PathSegment line line
-
-type alias NonemptyList a = List.Nonempty.Nonempty a
-
-pathSegments : SightPath -> NonemptyList PathSegment
-pathSegments path = 
-    List.Nonempty.singleton (startSegment path.start path.end) -- TODO
-
-
-
-type alias RoomItem =
-    { pos : Point 
-    , emoji : String 
-    }
-
-type SightPathVertex
-    = HitMirror MirrorBounce SightPathVertex
-    -- | HitItem RoomItem -- TODO add this
-    | StopTooFar Point
-
-type alias MirrorBounce = 
-    { axis : Axis
-    , wall : LineSegment
-    , point : Point
-    }
-
-nextPathVertex : Polygon2d Meters SceneCoords -> LineSegment2d Meters SceneCoords -> SightPathVertex
-nextPathVertex roomShape sightline =
-    let
-        -- "trim" off the very beginning of the sightline by shrinking it slightly
-        -- we dont want to count the start point as an intersection
-        -- which will happen for all recursive calls since the sightline will start on a wall
-        trimmedSightline = 
-            LineSegment2d.scaleAbout (LineSegment2d.endPoint sightline) 0.999 sightline   
-
-        mirrorBounceM : Maybe MirrorBounce
-        mirrorBounceM = 
-            Polygon2d.edges roomShape
-                |> List.map (\e -> 
-                    (LineSegment2d.intersectionPoint trimmedSightline e
-                        |> Maybe.map (Tuple.pair e)))
-                |> Maybe.orList
-                |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
-                |> Maybe.map (\(wall, point, dir) -> 
-                    { wall = wall, point = point, axis = Axis2d.withDirection dir point })
-        endpoint = 
-            LineSegment2d.endPoint sightline
-    in
-        mirrorBounceM
-            |> Maybe.map (\mb -> HitMirror mb 
-                (nextPathVertex roomShape (LineSegment2d.from mb.point endpoint)))
-            -- TODO add this withDefaultM hitItemM
-            |> Maybe.withDefault (StopTooFar endpoint)
-
-
-
--- compute the segment of the sightpath bouncing around the room
-sightPathSegment : SightPathVertex -> LineSegment
-sightPathSegment spVertex = 
-    LineSegment2d.from Point2d.origin Point2d.origin -- TODO
-
--- compute the segment of the projected sightpath which goes straight through the mirrors
-projectedPathSegment : SightPathVertex -> LineSegment
-projectedPathSegment spVertex =
-    sightPathSegment spVertex -- TODO
-
-
-    
-
-
-
-
-
-type ApparentRoom 
-    = ActualRoom Room
-    | ReflectionOf ApparentRoom Intersection
-
-type alias Room = 
-    { roomShape : Polygon }
-
-actual model = ActualRoom { roomShape = model.roomShape }
-
-firstReflection intersection1 model =
-    ReflectionOf (actual model) intersection1
-
-secondReflection intersection1 intersection2 model = 
-    ReflectionOf (firstReflection intersection1 model) intersection2
-
-apparentRoomShape : ApparentRoom -> Polygon
-apparentRoomShape ar = 
-    case ar of 
-        ActualRoom room -> room.roomShape
-        ReflectionOf twinRoom inter -> 
-            apparentRoomShape twinRoom
-                |> Polygon2d.mirrorAcross inter.axis
-
-{-
-sightlinePathSegments : ApparentRoom -> List LineSegment
-sightlinePathSegments ar = 
-    case ar of 
-        ActualRoom room -> 
-            -- TODO the line from viewerPos to the first intersection
-        ReflectionOf _ inter ->
-            -- TODO the previous lines plus the line from inter to the next intersection
--}
-
-type alias Roome = 
-    { wallShape : Polygon2d Meters SceneCoords 
-    , sightStart : Point2d Meters SceneCoords
-    , sightEnd : SightEnd
-    }
-
-type SightEnd
-    = TooFar (Point2d Meters SceneCoords)
-    | Bounce Intersection Roome
-
-
--- type alias Foo =
---     { sightStart : Point2d Meters SceneCoords 
---     , roomShape : Polygon2d Meters SceneCoords
---     , bounces : List Bounce 
---     }
-
--- type alias Bounce =
---     { intersection : Intersection
---     , reflection : 
---     }

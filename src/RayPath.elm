@@ -6,7 +6,7 @@ import List.Nonempty
 import Maybe.Extra as Maybe
 import Point2d
 import Polygon2d
-import Types exposing (..)
+import Shared exposing (..)
 
 type alias RayPath =
     { start : Point 
