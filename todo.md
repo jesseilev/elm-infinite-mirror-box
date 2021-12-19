@@ -3,12 +3,19 @@
 
 
 ## Features
-- F1 user can scroll y / mousewheel / pinch to zoom in and out
-- sightline is truncated to short preview length
-- user can click to fire a photon
-- when user clicks to fire, an animation plays as it bounces along the bounce path
-- target is rendered on the screen
+- render success animation 
+    - subtasks
+- item collision detection
+- ray interrupted on item collision
 - when user successfully hits target, success animation plays
+- label angles
+- multple room arrangement challenges
+- when you complete one room, it moves to the next
+- angle subtending
+- make styles match brilliant styleguide
+- text prompt
+- cursor shows drag-to-rotate thingy
+- sightpath animated the dotted line towards the player
 
 ## Internal
 - compute reflection bounce path
