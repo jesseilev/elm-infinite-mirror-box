@@ -17,7 +17,7 @@ import Pixels exposing (Pixels, pixels)
 import Point2d exposing (Point2d)
 import Polyline2d
 import Polygon2d
-import RoomItem
+import RoomItem exposing (RoomItem)
 import Sightray exposing (Sightray)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
@@ -34,9 +34,9 @@ import Shared exposing
 import Vector2d
 
 type alias Hallway =
-    { rooms : NonemptyList Room }
+    { rooms : NonemptyList RoomWithRay }
 
-type alias Room = 
+type alias RoomWithRay = 
     { roomStuff : () 
     , sightray : Sightray
     }
@@ -50,6 +50,7 @@ type alias Model =
     , viewerAngle : Angle
     , sightDistance : Quantity Float Meters
     , targetPos : Point
+    , trees : List RoomItem
     }
 
 init1 : Model 
@@ -65,39 +66,15 @@ init1 =
     , viewerAngle = Angle.degrees 50
     , sightDistance = Length.meters 14.5
     , targetPos = Point2d.meters 1.5 0.2
+    , trees = 
+        [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
+        , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.roundTree
+        , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.pineTree
+        ]
     }
 
 -- FUNCTIONS
 
-
--- nextMirrorBounce : LineSegment -> Polygon -> Maybe MirrorBounce
--- nextMirrorBounce sightline roomShape =
---     let
---         -- "trim" off the very beginning of the sightline by shrinking it slightly
---         -- we dont want to count the start point as an intersection
---         -- which will happen for all recursive calls since the sightline will start on a wall
---         trimmedSightline = 
---             LineSegment2d.scaleAbout (LineSegment2d.endPoint sightline) 0.999 sightline    
---     in
---     Polygon2d.edges roomShape
---         |> List.map (\e -> 
---             (LineSegment2d.intersectionPoint trimmedSightline e
---                 |> Maybe.map (Tuple.pair e)))
---         |> Maybe.orList
---         |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
---         |> Maybe.map (\(wall, point, dir) -> 
---             { wall = wall, point = point, axis = Axis2d.withDirection dir point })
-
--- -- TODO remake this using Room type
--- reflectedRooms : LineSegment -> Polygon -> List Polygon -> List Polygon
--- reflectedRooms sightline room roomsAcc = 
---     nextMirrorBounce sightline room
---         |> Maybe.map (\inter -> 
---             reflectedRooms 
---                 (LineSegment2d.from inter.point (LineSegment2d.endPoint sightline))
---                 (room |> Polygon2d.mirrorAcross inter.axis)
---                 (room :: roomsAcc))
---         |> Maybe.withDefault (room :: roomsAcc)
 
 projectedSightline : Model -> LineSegment
 projectedSightline model =
@@ -149,94 +126,77 @@ view animationStage model =
             RoomItem.init point emoji
                 |> RoomItem.view
                 |> Svg.map RoomItemMsg
+        
+        roomSvg = 
+            Svg.g [] 
+                [ Svg.polygon2d 
+                    [ Attr.fill "none"
+                    , Attr.strokeWidth "0.02"
+                    , Attr.stroke "black"
+                    ]
+                    (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
+                , viewRoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
+                , viewRoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.roundTree
+                , viewRoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.pineTree
+                , viewRoomItem model.viewerPos RoomItem.emojis.cat
+                , viewRoomItem model.targetPos RoomItem.emojis.parrot
+                ]
+
+        normalRay = 
+            Sightray.fromRoomAndProjectedPath model.wallShape (projectedSightline model)
+
+        (ray, centerPoint) = 
+            normalRay
+                |> Sightray.unravel
+                |> Array.fromList
+                |> (\rays -> Maybe.andThen (\s -> Array.get s rays) animationStage)
+                |> Maybe.map (\r -> (r, Sightray.startPos r.start))
+                |> Maybe.withDefault (normalRay, model.viewerPos)
+
+                    -- (viewRayUnravelAnimationStep model.viewerPos ray 
     in
     Svg.g [] 
-        [ Svg.polygon2d 
+        [ viewRay ray
+        , Svg.lineSegment2d 
             [ Attr.fill "none"
-            , Attr.strokeWidth "0.02"
-            , Attr.stroke "black"
+            , Attr.strokeWidth "0.03"
+            , Attr.stroke "blue"
             ]
-            (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-        -- , viewReflectedRooms model
-        , Sightray.fromRoomAndProjectedPath model.wallShape (projectedSightline model)
-            |> (\ray -> 
-                animationStage 
-                    |> Maybe.map (viewRayUnfoldAnimation model ray)
-                    |> Maybe.withDefault (viewRay model.viewerPos ray))
-        , viewRoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
-        , viewRoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.roundTree
-        , viewRoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.pineTree
-        , viewRoomItem model.viewerPos RoomItem.emojis.cat
-        , viewRoomItem model.targetPos RoomItem.emojis.parrot
-        -- , viewDebugStuff model
+            (LineSegment2d.from model.viewerPos (Sightray.startPos ray.start))
+        , roomSvg 
         ]
-        |> Svg.at (Shared.pixelsPerMeter 0.7)
+        |> Svg.translateBy (Vector2d.from centerPoint Point2d.origin)
+        |> Svg.at (Shared.pixelsPerMeter 0.5)
         |> Svg.relativeTo Shared.topLeftFrame
 
-viewRay : Point -> Sightray -> Svg Msg 
-viewRay viewerPos rp = 
-    rp
-        |> Sightray.vertices
-        |> (\vs -> viewerPos :: vs)
-        |> Polyline2d.fromVertices
-        |> Svg.polyline2d
-            [ Attr.fill "none"
-            , Attr.stroke "black"
-            , Attr.strokeWidth "0.05"
-            , Attr.strokeDasharray "0.05"
-            ]
-
-viewRayUnfoldAnimation : Model -> Sightray -> Int -> Svg Msg 
-viewRayUnfoldAnimation model ray stage = 
+viewRayUnravelAnimationStep : Point -> Sightray -> Int -> Svg Msg 
+viewRayUnravelAnimationStep viewerPos ray step = 
     ray
-        |> Sightray.unfold
+        |> Sightray.unravel
         |> Array.fromList
-        |> Array.get stage
-        |> Maybe.map (viewRay model.viewerPos)
+        |> Array.get step
+        |> Maybe.map (\tailRay -> 
+            Svg.g []
+                [ viewRay tailRay
+                , Svg.lineSegment2d 
+                    [ Attr.fill "none"
+                    , Attr.strokeWidth "0.03"
+                    , Attr.stroke "blue"
+                    ]
+                    (LineSegment2d.from viewerPos (Sightray.startPos tailRay.start))
+                ] 
+        )
         |> Maybe.withDefault (Svg.g [] [])
 
 
-
-
-
--- viewReflectedRooms : Model -> Svg Msg 
--- viewReflectedRooms model = 
---     let
---         reflectedRoom mirrorWall = 
---             model.roomShape 
---                 |> Polygon2d.mirrorAcross mirrorWall.axis
-        
---         wallM = 
---             Polygon2d.edges model.roomShape
---                 |> List.head
---                 |> Maybe.andThen mkWall
-
---         mkWall : LineSegment -> Maybe { wall : LineSegment, axis : Axis }
---         mkWall line = 
---             LineSegment2d.direction line
---                 |> Maybe.map (Axis2d.through (LineSegment2d.startPoint line))
---                 |> Maybe.map (\a -> { wall = line, axis = a})
---     in
---         reflectedRooms (projectedSightline model) model.roomShape []
---             |> List.map (Svg.polygon2d 
---                 [ Attr.fill "none"
---                 , Attr.stroke "grey"
---                 , Attr.strokeWidth "0.02" 
---                 ])
---             |> Svg.g [] 
-
-
-
--- viewDebugStuff : Model -> Svg Msg 
--- viewDebugStuff model = 
---     Svg.g []
---         [ frameDebugViz "purple"
---             |> Svg.placeIn (roomFrame model)
---         , frameDebugViz "orange" 
---             |> Svg.placeIn (viewerFrame model)
---         -- , frameDebugViz "grey"
---         --     |> Svg.relativeTo ((topLeftFrame model) |> Frame2d.translateBy (Vector2d.pixels -100 -100))
---         , Svg.circle2d
---             [ Attr.fill "red" ]
---             (Circle2d.atPoint model.clickPosDebug (Length.meters 0.05))
---         ]
+viewRay : Sightray -> Svg Msg 
+viewRay ray = 
+    ray 
+        |> Sightray.vertices
+        |> Polyline2d.fromVertices
+        |> Svg.polyline2d
+            [ Attr.fill "none" 
+            , Attr.stroke "black"
+            , Attr.strokeWidth "0.03"
+            , Attr.strokeDasharray "0.05"
+            ]

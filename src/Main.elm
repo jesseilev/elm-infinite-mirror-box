@@ -11,6 +11,7 @@ import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Border as Border
 import Element.Events
+import Element.Input as Input
 import VirtualDom
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
@@ -84,6 +85,14 @@ type Msg
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
     | RoomMsg Room.Msg
+    | StepAnimation Step
+
+type Step = Prev | Next
+
+stepToInt step = 
+    case step of 
+        Prev -> -1 
+        Next -> 1
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
@@ -121,14 +130,16 @@ update msg model =
             }
                 |> noCmds
 
+        StepAnimation step ->
+            { model | animationStage = Maybe.map ((+) (stepToInt step)) model.animationStage }
+                |> noCmds
+
         _ ->
             model |> noCmds
 
 
-noCmds x = ( x, Cmd.none )
-
-
 -- SUBSCRIPTIONS --
+
 subscriptions _ = 
     Sub.none
 
@@ -144,10 +155,17 @@ view model =
         (El.el 
             [ El.centerX
             , El.centerY 
-            , Border.solid
-            , Border.width 2
             ] 
-            (El.html (svgContainer model)))
+            (El.column []
+                [ El.el 
+                    [ Border.solid
+                    , Border.width 2
+                    ] 
+                    (El.html (svgContainer model))
+                , viewAnimationButtons model
+                ]
+            )
+        )
 
 
 svgContainer : Model -> Html Msg
@@ -158,11 +176,11 @@ svgContainer model =
         , Pointer.onLeave (\_ -> ToggleMouseDown False |> Debug.log "mouse left!")
         , Pointer.onMove (\event -> 
             if model.mouseDown then 
-                MouseDragAt (mouseToSceneCoords model event.pointer.offsetPos)
+                MouseDragAt (mouseToSceneCoords model.zoomScale event.pointer.offsetPos)
             else 
                 NoOp)
         , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
-        , Mouse.onClick (\event -> MouseClickAt Point2d.origin)
+        , Mouse.onClick (\event -> if model.mouseDown then NoOp else MouseClickAt Point2d.origin)
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
@@ -171,58 +189,33 @@ svgContainer model =
             [ Room.view model.animationStage model.room 
                 |> Svg.map RoomMsg
             ]
-        , Html.text (model.mouseDragPos |> Maybe.map (\_ -> "dragging") |> Maybe.withDefault "no drag")
         ]
 
-roomItem : Model -> String -> Point -> Svg Msg
-roomItem model emoji pos = 
-    let
-        fontSize = 0.25
-    in
-    Svg.g [] 
-        [ Svg.circle2d
-            [ Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            , TypedSvg.Attributes.fill <| Paint Color.white
-            , Attr.strokeWidth "0.01"
-            , Attr.stroke "lightGrey"
-            ]
-            (Circle2d.atOrigin (Length.meters fontSize))
-        , Svg.text_ 
-            [ Attr.fontSize (String.fromFloat fontSize)
-            , Attr.x (-0.5 * fontSize |> String.fromFloat)
-            , Attr.alignmentBaseline "central"
-            ] 
-            [ Svg.text emoji ]
-            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+viewAnimationButtons : Model -> Element Msg 
+viewAnimationButtons model = 
+    El.row 
+        [ El.centerX 
+        , El.spacing 20 
         ]
-        |> Svg.translateBy (Vector2d.from Point2d.origin pos)
-
-
-frameDebugViz : String -> Svg Msg        
-frameDebugViz clr = 
-    Svg.g [] 
-        [ Svg.rectangle2d 
-            [ Attr.stroke clr
-            , Attr.strokeWidth "0.02" -- in meters. TODO use typedsvg
-            , VirtualDom.attribute "vector-effect" "non-scaling-stroke"
-            , Attr.fill "none" 
-            ]
-            (Rectangle2d.from Point2d.origin (Point2d.meters 0.5 1.0))
-        , Svg.circle2d [ Attr.fill "black" ]
-            (Circle2d.atOrigin (Length.meters 0.05))
+        [ Input.button []
+            { onPress = Just (StepAnimation Prev)
+            , label = El.text "<"
+            }
+        , Input.button []
+            { onPress = Just (StepAnimation Next)
+            , label = El.text ">"
+            }
         ]
-
-    
 
 -- Frame, Units, Conversions --
 
-pixelsPerMeter model = 
+pixelsPerMeter zoomScale = 
     pixels 100 
         |> Quantity.per (Length.meters 1)
-        |> Quantity.multiplyBy model.zoomScale
+        |> Quantity.multiplyBy zoomScale
 
-topLeftFrame : Model -> Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-topLeftFrame model = 
+topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
+topLeftFrame = 
     Frame2d.atOrigin
         |> Frame2d.translateBy
             (Vector2d.xy
@@ -230,46 +223,16 @@ topLeftFrame model =
                 (pixels <| constants.containerHeight / 2.0))
         |> Frame2d.reverseY
 
-mouseToSceneCoords : Model -> (Float, Float) -> Point2d Meters SceneCoords
-mouseToSceneCoords model (x, y) = 
+mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
+mouseToSceneCoords zoomScale (x, y) = 
     Point2d.pixels x y
-        |> Point2d.placeIn (topLeftFrame model)
-        |> Point2d.at_ (pixelsPerMeter model)
+        |> Point2d.placeIn topLeftFrame
+        |> Point2d.at_ (pixelsPerMeter zoomScale)
 
 svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
 svgToSceneCoords localFrame svg =
     svg 
         |> Svg.mirrorAcross Axis2d.x 
         |> Svg.placeIn localFrame
-
-pointYAxisAt : Point2d u c -> Frame2d u c {} -> Frame2d u c {}
-pointYAxisAt target frame =
-    let 
-        currentDirection =
-            Frame2d.yDirection frame
-
-        targetDirection = 
-            Vector2d.from (Frame2d.originPoint frame) target
-                |> Vector2d.direction
-                |> Maybe.withDefault currentDirection
-
-        angleDifference = 
-            Direction2d.angleFrom currentDirection targetDirection
-    in 
-        Frame2d.rotateBy angleDifference frame
-
-maybePair : Maybe a -> Maybe b -> Maybe (a, b)
-maybePair ma mb = 
-    case (ma, mb) of 
-        (Just x, Just y) -> Just (x, y)
-        _ -> Nothing
-
-sign : number -> number
-sign n = 
-    if n < 0 then -1 else 1
-
-
--- COMPUTING STUFF --
-
 
 

@@ -68,3 +68,20 @@ constants =
     { containerWidth = 500 
     , containerHeight = 500 
     }
+
+
+
+
+noCmds : a -> (a, Cmd msg)
+noCmds x = ( x, Cmd.none )
+
+
+maybePair : Maybe a -> Maybe b -> Maybe (a, b)
+maybePair ma mb = 
+    case (ma, mb) of 
+        (Just x, Just y) -> Just (x, y)
+        _ -> Nothing
+
+sign : number -> number
+sign n = 
+    if n < 0 then -1 else 1

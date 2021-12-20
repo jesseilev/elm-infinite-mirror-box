@@ -145,19 +145,24 @@ tail raypath =
 
 -- all the steps in the unfolding animation 
 -- from totally real at the beginning to totally projected at the end
-unfold : Sightray -> List Sightray
-unfold raypath =
-    raypath :: 
-        (tail raypath 
-            |> Maybe.map (\(initialBounce, ray) -> 
-                mirrorAcross initialBounce.axis ray
-                    |> unfold
+unravel : Sightray -> List Sightray
+unravel ray =
+    ray :: 
+        (tail ray 
+            |> Maybe.map (\(bounce, tailRay) -> 
+                mirrorAcross bounce.axis tailRay
+                    |> unravel
             )
             |> Maybe.withDefault []
         )
+-- TODO refactor using
+-- tails ray == [ ray, tail ray, tail tail ray, ... ]
+-- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
 
 
 
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
     startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
+
+
