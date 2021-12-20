@@ -25,13 +25,21 @@ import TypedSvg.Attributes
 import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 import Shared exposing
     ( Axis
+    , Direction
     , LineSegment
     , Point 
     , Polygon 
     , SceneCoords
     , TopLeftCoords
+    , InterpolatedReflection
+    , interpReflectPoint
+    , interpReflectPolygon
+    , interpReflectPolyline
     )
 import Vector2d
+import Direction2d exposing (Direction2d)
+import Polyline2d exposing (Polyline2d)
+import RoomItem exposing (interpReflect)
 
 type alias Hallway =
     { rooms : NonemptyList RoomWithRay }
@@ -41,13 +49,14 @@ type alias RoomWithRay =
     , sightray : Sightray
     }
 
+
 type alias NonemptyList a = List.Nonempty.Nonempty a
 
 
 type alias Model = 
     { wallShape : Polygon
     , viewerPos : Point
-    , viewerAngle : Angle
+    , viewerDirection : Direction 
     , sightDistance : Quantity Float Meters
     , targetPos : Point
     , trees : List RoomItem
@@ -63,7 +72,7 @@ init1 =
             , Point2d.meters -1.5 2.25
             ]
     , viewerPos = Point2d.meters 0.3 -0.7
-    , viewerAngle = Angle.degrees 50
+    , viewerDirection = Direction2d.fromAngle (Angle.degrees 50)
     , sightDistance = Length.meters 14.5
     , targetPos = Point2d.meters 1.5 0.2
     , trees = 
@@ -80,7 +89,8 @@ projectedSightline : Model -> LineSegment
 projectedSightline model =
     LineSegment2d.fromPointAndVector model.viewerPos
         (Vector2d.withLength model.sightDistance 
-            (Frame2d.yDirection (Shared.viewerFrame model.viewerPos model.viewerAngle)))
+            (Frame2d.yDirection (Shared.viewerFrame model.viewerPos 
+                (Direction2d.toAngle model.viewerDirection))))
 
 
 angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
@@ -91,6 +101,16 @@ angleDiff pivot p1 p2 =
                 |> Maybe.map Direction2d.toAngle
     in
         Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
+
+interpReflect : InterpolatedReflection Model 
+interpReflect axis pct model =
+    { model 
+        | wallShape = Shared.interpReflectPolygon axis pct model.wallShape
+        , viewerPos = Shared.interpReflectPoint axis pct model.viewerPos
+        , viewerDirection = Shared.interpReflectDirection axis pct model.viewerDirection
+        , targetPos = Shared.interpReflectPoint axis pct model.targetPos
+        , trees = List.map (RoomItem.interpReflect axis pct) model.trees
+    }
 
 
 -- UPDATE
@@ -106,41 +126,55 @@ mouseDragMsg =
 
 update : Msg -> Model -> Model
 update msg model =
+    let viewerAngle = Direction2d.toAngle model.viewerDirection in
     case msg of 
         MouseDragMsg prevMousePos mousePos -> 
-            Shared.viewerFrame model.viewerPos model.viewerAngle
+            Shared.viewerFrame model.viewerPos viewerAngle
                 |> Frame2d.originPoint
                 |> (\origin -> angleDiff origin prevMousePos mousePos)
-                |> Maybe.map (Quantity.plus model.viewerAngle)
-                |> Maybe.withDefault model.viewerAngle
-                |> (\a -> { model | viewerAngle = a })
+                |> Maybe.map (Quantity.plus viewerAngle)
+                |> Maybe.withDefault viewerAngle
+                |> (\a -> { model | viewerDirection = Direction2d.fromAngle a })
         _ -> 
             model
 
 -- VIEW
 
-view : Maybe Int -> Model -> Svg Msg 
-view animationStage model = 
+view : Maybe Shared.SuccessAnimation -> Model -> Svg Msg 
+view animation model = 
+    Svg.g [] 
+        [ view_ animation model 
+        , animation 
+            |> Maybe.map (\a -> 
+                view_ animation
+                    (model |> interpReflect fakeAxis (a.transitionPct |> Maybe.withDefault 0))
+            )
+            |> Maybe.withDefault (Svg.g [] [])
+        ]
+        -- |> Svg.translateBy (Vector2d.from centerPoint Point2d.origin)
+        |> Svg.at (Shared.pixelsPerMeter 0.3)
+        |> Svg.relativeTo Shared.topLeftFrame
+
+view_ : Maybe Shared.SuccessAnimation -> Model -> Svg Msg 
+view_ animation model = 
     let 
-        viewRoomItem point emoji = 
-            RoomItem.init point emoji
+        viewRoomItem item = 
+            RoomItem.init item.pos item.emoji
                 |> RoomItem.view
                 |> Svg.map RoomItemMsg
         
         roomSvg = 
             Svg.g [] 
-                [ Svg.polygon2d 
+                <| [ Svg.polygon2d 
                     [ Attr.fill "none"
                     , Attr.strokeWidth "0.02"
                     , Attr.stroke "black"
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-                , viewRoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
-                , viewRoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.roundTree
-                , viewRoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.pineTree
-                , viewRoomItem model.viewerPos RoomItem.emojis.cat
-                , viewRoomItem model.targetPos RoomItem.emojis.parrot
+                , viewRoomItem <| RoomItem.init model.viewerPos RoomItem.emojis.cat
+                , viewRoomItem <| RoomItem.init model.targetPos RoomItem.emojis.parrot
                 ]
+                ++ (List.map viewRoomItem model.trees)
 
         normalRay = 
             Sightray.fromRoomAndProjectedPath model.wallShape (projectedSightline model)
@@ -149,11 +183,10 @@ view animationStage model =
             normalRay
                 |> Sightray.unravel
                 |> Array.fromList
-                |> (\rays -> Maybe.andThen (\s -> Array.get s rays) animationStage)
+                |> (\rays -> Maybe.andThen (\s -> Array.get s rays) (Maybe.map .step animation))
                 |> Maybe.map (\r -> (r, Sightray.startPos r.start))
                 |> Maybe.withDefault (normalRay, model.viewerPos)
 
-                    -- (viewRayUnravelAnimationStep model.viewerPos ray 
     in
     Svg.g [] 
         [ viewRay ray
@@ -164,10 +197,16 @@ view animationStage model =
             ]
             (LineSegment2d.from model.viewerPos (Sightray.startPos ray.start))
         , roomSvg 
+        -- , Sightray.vertices ray
+        --     |> Polyline2d.fromVertices
+        --     |> Shared.interpReflectPolyline fakeAxis fakePct
+        --     |> Svg.polyline2d [ Attr.fill "none", Attr.stroke "red", Attr.strokeWidth "0.02" ]
+        -- , model.wallShape
+        --     |> Shared.interpReflectPolygon fakeAxis fakePct
+        --     |> Svg.polygon2d [ Attr.fill "none", Attr.stroke "red", Attr.strokeWidth "0.02" ]
         ]
-        |> Svg.translateBy (Vector2d.from centerPoint Point2d.origin)
-        |> Svg.at (Shared.pixelsPerMeter 0.5)
-        |> Svg.relativeTo Shared.topLeftFrame
+
+fakeAxis = Axis2d.through (Point2d.meters 3 0) Direction2d.y
 
 viewRayUnravelAnimationStep : Point -> Sightray -> Int -> Svg Msg 
 viewRayUnravelAnimationStep viewerPos ray step = 

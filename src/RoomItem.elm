@@ -5,6 +5,7 @@ module RoomItem exposing
     , emojis
     , Msg
     , view
+    , interpReflect
     )
 
 import Axis2d
@@ -20,6 +21,8 @@ import Svg.Attributes as Attr
 import TypedSvg.Attributes
 import TypedSvg.Types exposing (Paint(..))
 import Vector2d 
+import Shared exposing (InterpolatedReflection)
+import Shared exposing (interpReflectPoint)
 
 type alias RoomItem = 
     { pos : Point 
@@ -32,7 +35,11 @@ init =
 
 setPos : Point -> RoomItem -> RoomItem
 setPos pos item = 
-    { item | pos = pos }
+    updatePos (\_ -> pos) item
+
+updatePos : (Point -> Point) -> RoomItem -> RoomItem
+updatePos upd item = 
+    { item | pos = upd item.pos }
 
 
 -- TODO make typesafe
@@ -74,3 +81,8 @@ view item =
             |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
         ]
         |> Svg.translateBy (Vector2d.from Point2d.origin item.pos)
+
+
+interpReflect : InterpolatedReflection RoomItem
+interpReflect axis pct item =
+    item |> updatePos (interpReflectPoint axis pct)

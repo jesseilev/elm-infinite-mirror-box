@@ -159,10 +159,14 @@ unravel ray =
 -- tails ray == [ ray, tail ray, tail tail ray, ... ]
 -- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
 
-
-
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
     startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
 
 
+-- interpReflect : InterpolatedReflection Sightray
+-- interpReflect axis pct ray = 
+--     { ray 
+--         | start = ray.start 
+--         , bounces = List.map interpReflectBounce
+--     }

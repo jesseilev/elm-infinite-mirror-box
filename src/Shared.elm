@@ -3,6 +3,7 @@ module Shared exposing (..)
 import Angle exposing (Angle)
 import Axis2d exposing (Axis2d)
 import Circle2d exposing (Circle2d)
+import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
 import Length exposing (Meters)
 import LineSegment2d exposing (LineSegment2d)
@@ -18,6 +19,7 @@ import Vector2d
 -- Geometry types with the units and coords type parameters applied --
 type alias Axis = Axis2d Meters SceneCoords
 type alias Circle = Circle2d Meters SceneCoords
+type alias Direction = Direction2d SceneCoords
 type alias LineSegment = LineSegment2d Meters SceneCoords
 type alias Point = Point2d Meters SceneCoords
 type alias Polygon = Polygon2d Meters SceneCoords
@@ -85,3 +87,58 @@ maybePair ma mb =
 sign : number -> number
 sign n = 
     if n < 0 then -1 else 1
+
+
+
+
+type alias InterpolatedReflection a = Axis -> Float -> a -> a
+
+interpReflectPoint : InterpolatedReflection Point 
+interpReflectPoint axis pct point =
+    Point2d.mirrorAcross axis point
+        |> (LineSegment2d.from point)
+        |> (\line -> LineSegment2d.interpolate line pct)
+
+interpReflectLine : InterpolatedReflection LineSegment
+interpReflectLine axis pct line =
+    LineSegment2d.from
+        (interpReflectPoint axis pct (LineSegment2d.startPoint line))
+        (interpReflectPoint axis pct (LineSegment2d.endPoint line))
+
+interpReflectPolygon : InterpolatedReflection Polygon 
+interpReflectPolygon axis pct pg = 
+    Polygon2d.vertices pg
+        |> List.map (interpReflectPoint axis pct)
+        |> Polygon2d.singleLoop
+
+interpReflectPolyline : InterpolatedReflection Polyline
+interpReflectPolyline axis pct pl =
+    Polyline2d.vertices pl
+        |> List.map (interpReflectPoint axis pct)
+        |> Polyline2d.fromVertices
+
+
+interpReflectDirection : Axis -> Float -> Direction -> Direction
+interpReflectDirection axis pct dir = 
+    let 
+        angle = Direction2d.toAngle dir 
+
+        interpAngle : Angle -> Angle -> Float -> Angle
+        interpAngle a1 a2 pct_ = 
+            Quantity.difference a1 a2
+                |> Quantity.multiplyBy pct
+                |> Quantity.plus a1
+
+        fullReflectionAngle = 
+            Direction2d.mirrorAcross axis dir
+                |> Direction2d.toAngle
+    in
+        interpAngle angle fullReflectionAngle pct
+            |> Direction2d.fromAngle
+
+
+
+type alias SuccessAnimation = 
+    { step : Int 
+    , transitionPct : Maybe Float
+    }

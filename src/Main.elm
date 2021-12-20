@@ -43,7 +43,7 @@ import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 import Shared exposing (..)
 import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
-
+import Time
 
 main = 
     Browser.element
@@ -61,8 +61,9 @@ type alias Model =
     , mouseDown : Bool
     , clickPosDebug : Point
     , zoomScale : Float
-    , animationStage : Maybe Int
+    , successAnimation : Maybe Shared.SuccessAnimation
     }
+
 
 init : () -> ( Model, Cmd Msg )
 init _ =
@@ -71,7 +72,7 @@ init _ =
     , mouseDown = False
     , clickPosDebug = Point2d.origin
     , zoomScale = 0.3
-    , animationStage = Just 0
+    , successAnimation = Just (SuccessAnimation 0 (Just 0.4))
     }
         |> noCmds
 
@@ -85,14 +86,8 @@ type Msg
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
     | RoomMsg Room.Msg
-    | StepAnimation Step
-
-type Step = Prev | Next
-
-stepToInt step = 
-    case step of 
-        Prev -> -1 
-        Next -> 1
+    | StepAnimation Int
+    | Tick
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
@@ -116,13 +111,12 @@ update msg model =
             { model | mouseDown = isDown, mouseDragPos = Nothing }
                 |> noCmds
 
-        MouseClickAt sceneOffsetPos -> 
-            { model 
-                -- | viewerPos = sceneOffsetPos |> Point2d.relativeTo (roomFrame model)
-                -- , clickPosDebug = sceneOffsetPos
-                | animationStage = Maybe.map ((+) 1) model.animationStage
-            }
-                |> noCmds
+        -- MouseClickAt sceneOffsetPos -> 
+        --     { model 
+        --         -- | viewerPos = sceneOffsetPos |> Point2d.relativeTo (roomFrame model)
+        --         -- , clickPosDebug = sceneOffsetPos
+        --     }
+        --         |> noCmds
         
         AdjustZoom deltaY ->
             { model  
@@ -130,8 +124,31 @@ update msg model =
             }
                 |> noCmds
 
-        StepAnimation step ->
-            { model | animationStage = Maybe.map ((+) (stepToInt step)) model.animationStage }
+        StepAnimation stepDiff ->
+            { model | successAnimation = model.successAnimation 
+                |> Maybe.map (\ani -> 
+                    { ani | step = ani.step + stepDiff, transitionPct = Just 0 }
+                )
+            }
+                |> noCmds
+
+        Tick -> 
+            { model | successAnimation = model.successAnimation 
+                |> Maybe.map (\ani -> 
+                    case ani.transitionPct of 
+                        Nothing -> ani
+                        Just pct ->
+                            { ani | transitionPct = 
+                                pct + 0.02
+                                    |> (\newPct -> 
+                                        if newPct < 1.0 then 
+                                            Just newPct
+                                        else 
+                                            Nothing
+                                        )
+                            }
+                )
+            }
                 |> noCmds
 
         _ ->
@@ -140,8 +157,13 @@ update msg model =
 
 -- SUBSCRIPTIONS --
 
-subscriptions _ = 
-    Sub.none
+subscriptions : Model -> Sub Msg
+subscriptions model = 
+    case model.successAnimation |> Maybe.map .transitionPct of
+        Just _ ->
+            Time.every 50 (\_ -> Tick)
+        _ ->
+            Sub.none
 
 
 -- VIEW --
@@ -186,7 +208,7 @@ svgContainer model =
             [ Attr.width (constants.containerWidth |> String.fromFloat)
             , Attr.height (constants.containerHeight |> String.fromFloat)
             ]
-            [ Room.view model.animationStage model.room 
+            [ Room.view model.successAnimation model.room 
                 |> Svg.map RoomMsg
             ]
         ]
@@ -198,11 +220,11 @@ viewAnimationButtons model =
         , El.spacing 20 
         ]
         [ Input.button []
-            { onPress = Just (StepAnimation Prev)
+            { onPress = Just (StepAnimation -1)
             , label = El.text "<"
             }
         , Input.button []
-            { onPress = Just (StepAnimation Next)
+            { onPress = Just (StepAnimation 1)
             , label = El.text ">"
             }
         ]
