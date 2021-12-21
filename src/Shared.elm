@@ -137,7 +137,6 @@ interpReflectDirection axis pct dir =
             |> Direction2d.fromAngle
 
 
-
 type alias SuccessAnimation = 
     { step : Int 
     , transitionPct : Maybe Float

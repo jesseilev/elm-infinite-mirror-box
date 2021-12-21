@@ -1,4 +1,4 @@
-module Room exposing (Model, init1, Msg, update, mouseDragMsg, view)
+module Room exposing (Model, init1, Msg, update, mouseDragMsg, view, projectedSightline)
 
 import Array
 import Angle exposing (Angle)
@@ -140,32 +140,17 @@ update msg model =
 
 -- VIEW
 
-view : Maybe Shared.SuccessAnimation -> Model -> Svg Msg 
-view animation model = 
-    Svg.g [] 
-        [ view_ animation model 
-        , animation 
-            |> Maybe.map (\a -> 
-                view_ animation
-                    (model |> interpReflect fakeAxis (a.transitionPct |> Maybe.withDefault 0))
-            )
-            |> Maybe.withDefault (Svg.g [] [])
-        ]
-        -- |> Svg.translateBy (Vector2d.from centerPoint Point2d.origin)
-        |> Svg.at (Shared.pixelsPerMeter 0.3)
-        |> Svg.relativeTo Shared.topLeftFrame
-
-view_ : Maybe Shared.SuccessAnimation -> Model -> Svg Msg 
-view_ animation model = 
+view : Model -> Svg Msg 
+view model = 
     let 
         viewRoomItem item = 
             RoomItem.init item.pos item.emoji
                 |> RoomItem.view
                 |> Svg.map RoomItemMsg
-        
-        roomSvg = 
-            Svg.g [] 
-                <| [ Svg.polygon2d 
+
+        roomSvg =
+            Svg.g [] <| 
+                [ Svg.polygon2d 
                     [ Attr.fill "none"
                     , Attr.strokeWidth "0.02"
                     , Attr.stroke "black"
@@ -174,68 +159,8 @@ view_ animation model =
                 , viewRoomItem <| RoomItem.init model.viewerPos RoomItem.emojis.cat
                 , viewRoomItem <| RoomItem.init model.targetPos RoomItem.emojis.parrot
                 ]
-                ++ (List.map viewRoomItem model.trees)
-
-        normalRay = 
-            Sightray.fromRoomAndProjectedPath model.wallShape (projectedSightline model)
-
-        (ray, centerPoint) = 
-            normalRay
-                |> Sightray.unravel
-                |> Array.fromList
-                |> (\rays -> Maybe.andThen (\s -> Array.get s rays) (Maybe.map .step animation))
-                |> Maybe.map (\r -> (r, Sightray.startPos r.start))
-                |> Maybe.withDefault (normalRay, model.viewerPos)
-
+                ++ (List.map viewRoomItem model.trees)        
     in
-    Svg.g [] 
-        [ viewRay ray
-        , Svg.lineSegment2d 
-            [ Attr.fill "none"
-            , Attr.strokeWidth "0.03"
-            , Attr.stroke "blue"
-            ]
-            (LineSegment2d.from model.viewerPos (Sightray.startPos ray.start))
-        , roomSvg 
-        -- , Sightray.vertices ray
-        --     |> Polyline2d.fromVertices
-        --     |> Shared.interpReflectPolyline fakeAxis fakePct
-        --     |> Svg.polyline2d [ Attr.fill "none", Attr.stroke "red", Attr.strokeWidth "0.02" ]
-        -- , model.wallShape
-        --     |> Shared.interpReflectPolygon fakeAxis fakePct
-        --     |> Svg.polygon2d [ Attr.fill "none", Attr.stroke "red", Attr.strokeWidth "0.02" ]
-        ]
-
-fakeAxis = Axis2d.through (Point2d.meters 3 0) Direction2d.y
-
-viewRayUnravelAnimationStep : Point -> Sightray -> Int -> Svg Msg 
-viewRayUnravelAnimationStep viewerPos ray step = 
-    ray
-        |> Sightray.unravel
-        |> Array.fromList
-        |> Array.get step
-        |> Maybe.map (\tailRay -> 
-            Svg.g []
-                [ viewRay tailRay
-                , Svg.lineSegment2d 
-                    [ Attr.fill "none"
-                    , Attr.strokeWidth "0.03"
-                    , Attr.stroke "blue"
-                    ]
-                    (LineSegment2d.from viewerPos (Sightray.startPos tailRay.start))
-                ] 
-        )
-        |> Maybe.withDefault (Svg.g [] [])
-
-
-viewRay : Sightray -> Svg Msg 
-viewRay ray = 
-    ray 
-        |> Sightray.vertices
-        |> Polyline2d.fromVertices
-        |> Svg.polyline2d
-            [ Attr.fill "none" 
-            , Attr.stroke "black"
-            , Attr.strokeWidth "0.03"
-            , Attr.strokeDasharray "0.05"
-            ]
+        roomSvg 
+            -- |> Svg.at (Shared.pixelsPerMeter 0.3)
+            -- |> Svg.relativeTo Shared.topLeftFrame

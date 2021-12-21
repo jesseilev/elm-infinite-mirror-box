@@ -150,8 +150,7 @@ unravel ray =
     ray :: 
         (tail ray 
             |> Maybe.map (\(bounce, tailRay) -> 
-                mirrorAcross bounce.axis tailRay
-                    |> unravel
+                mirrorAcross bounce.axis tailRay |> unravel
             )
             |> Maybe.withDefault []
         )
@@ -164,9 +163,23 @@ vertices ray = -- TODO nonempty list?
     startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
 
 
--- interpReflect : InterpolatedReflection Sightray
--- interpReflect axis pct ray = 
---     { ray 
---         | start = ray.start 
---         , bounces = List.map interpReflectBounce
---     }
+interpReflect : InterpolatedReflection Sightray
+interpReflect axis pct ray = 
+    { ray 
+        | start = updateStartPos (interpReflectPoint axis pct) ray.start 
+        , bounces = List.map (interpReflectBounce axis pct) ray.bounces
+        , end = updateEndPos (interpReflectPoint axis pct) ray.end
+    }
+
+interpReflectBounce : InterpolatedReflection MirrorBounce
+interpReflectBounce axis pct bounce =
+    let 
+        newWall = interpReflectLine axis pct bounce.wall 
+        newAxis = Axis2d.throughPoints (LineSegment2d.startPoint newWall) 
+            (LineSegment2d.endPoint newWall)
+            |> Maybe.withDefault bounce.axis
+    in
+    { wall = newWall 
+    , axis = newAxis
+    , point = interpReflectPoint axis pct bounce.point 
+    }

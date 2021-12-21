@@ -41,9 +41,15 @@ import TypedSvg.Attributes
 import TypedSvg.Attributes.InPx
 import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 import Shared exposing (..)
+import Sightray
 import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
 import Time
+import Sightray exposing (startPos)
+import Sightray exposing (Sightray)
+import Sightray exposing (interpReflect)
+import Circle2d exposing (centerPoint)
+import TypedSvg.Types exposing (YesNo(..))
 
 main = 
     Browser.element
@@ -72,7 +78,7 @@ init _ =
     , mouseDown = False
     , clickPosDebug = Point2d.origin
     , zoomScale = 0.3
-    , successAnimation = Just (SuccessAnimation 0 (Just 0.4))
+    , successAnimation = Just (SuccessAnimation 0 Nothing)
     }
         |> noCmds
 
@@ -127,7 +133,7 @@ update msg model =
         StepAnimation stepDiff ->
             { model | successAnimation = model.successAnimation 
                 |> Maybe.map (\ani -> 
-                    { ani | step = ani.step + stepDiff, transitionPct = Just 0 }
+                    { ani | step = ani.step + 1, transitionPct = Just 0 }
                 )
             }
                 |> noCmds
@@ -137,16 +143,12 @@ update msg model =
                 |> Maybe.map (\ani -> 
                     case ani.transitionPct of 
                         Nothing -> ani
-                        Just pct ->
-                            { ani | transitionPct = 
-                                pct + 0.02
-                                    |> (\newPct -> 
-                                        if newPct < 1.0 then 
-                                            Just newPct
-                                        else 
-                                            Nothing
-                                        )
-                            }
+                        Just pct -> pct + 0.02 |> (\newPct -> 
+                            if newPct < 1.0 then 
+                                { ani | transitionPct = Just newPct }
+                            else 
+                                { ani | transitionPct = Nothing, step = ani.step }
+                            )
                 )
             }
                 |> noCmds
@@ -208,10 +210,88 @@ svgContainer model =
             [ Attr.width (constants.containerWidth |> String.fromFloat)
             , Attr.height (constants.containerHeight |> String.fromFloat)
             ]
-            [ Room.view model.successAnimation model.room 
-                |> Svg.map RoomMsg
+            [ Svg.g [] 
+                [ model.successAnimation 
+                    |> Maybe.map (viewDiagramSuccess model)
+                    |> Maybe.withDefault (viewDiagramNormal model)
+                ]
             ]
         ]
+
+viewDiagramNormal model =
+    Svg.g []
+        [ viewRayNormal model
+        , Room.view model.room |> Svg.map RoomMsg
+        ]
+        |> Svg.at (Shared.pixelsPerMeter 0.5)
+        |> Svg.relativeTo Shared.topLeftFrame
+
+viewDiagramSuccess model animation = 
+    Svg.g []
+        [ viewRaySuccess model animation
+        , Room.view model.room |> Svg.map RoomMsg
+        ]
+        |> Svg.at (Shared.pixelsPerMeter 0.3)--(0.6 ^ toFloat animation.step))
+        |> Svg.relativeTo Shared.topLeftFrame
+
+
+
+viewRayNormal : Model -> Svg Msg
+viewRayNormal model =
+    Sightray.fromRoomAndProjectedPath model.room.wallShape
+        (Room.projectedSightline model.room)
+        |> Sightray.vertices
+        |> Polyline2d.fromVertices
+        |> Svg.polyline2d
+            [ Attr.fill "none" 
+            , Attr.stroke "black"
+            , Attr.strokeWidth "0.03"
+            , Attr.strokeDasharray "0.05"
+            ]
+
+viewRaySuccess : Model -> SuccessAnimation -> Svg Msg
+viewRaySuccess model animation =
+    let
+        normalRay = 
+            Sightray.fromRoomAndProjectedPath model.room.wallShape
+                (Room.projectedSightline model.room)
+
+        (successRay, centerPoint) = 
+            normalRay
+                |> Sightray.unravel
+                |> Array.fromList
+                |> (\rs -> Array.get animation.step rs)
+                |> Maybe.map (\r -> 
+                    case Sightray.tail r of 
+                        Nothing -> (r, Sightray.startPos r.start)
+                        Just (bounce, tail) ->
+                            ( tail 
+                                -- |> Sightray.interpReflect bounce.axis 
+                                --     (animation.transitionPct |> Maybe.withDefault 0)
+                            , bounce.point
+                            )
+                )
+                    -- ( { r | start = Sightray.updateStartPos (\_ -> model.room.viewerPos) r.start }
+                    -- , Sightray.startPos r.start
+                    -- ))
+                |> Maybe.withDefault (normalRay, model.room.viewerPos)  
+        
+        lineAttrs color = 
+            [ Attr.fill "none" 
+            , Attr.stroke color
+            , Attr.strokeWidth "0.03"
+            , Attr.strokeDasharray "0.05"
+            ]
+    in
+    successRay 
+        |> Sightray.vertices
+        |> Polyline2d.fromVertices
+        |> (\poly -> Svg.g [] 
+            [ Svg.polyline2d (lineAttrs "black") poly 
+            , Svg.lineSegment2d (lineAttrs "red") (LineSegment2d.from model.room.viewerPos centerPoint)
+            ])
+            
+    
 
 viewAnimationButtons : Model -> Element Msg 
 viewAnimationButtons model = 
