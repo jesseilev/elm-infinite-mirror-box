@@ -22,6 +22,7 @@ import Html.Events.Extra.Pointer as Pointer
 import Html.Events.Extra.Wheel as Wheel
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
+import List.Extra as List
 import List.Nonempty
 import Maybe.Extra as Maybe
 import Pixels exposing (Pixels, pixels)
@@ -50,6 +51,7 @@ import Sightray exposing (Sightray)
 import Sightray exposing (interpReflect)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
+import Room exposing (projectedSightline)
 
 main = 
     Browser.element
@@ -65,10 +67,10 @@ type alias Model =
     { room : Room.Model
     , mouseDragPos : Maybe Point
     , mouseDown : Bool
-    , clickPosDebug : Point
     , zoomScale : Float
     , successAnimation : Maybe Shared.SuccessAnimation
     }
+
 
 
 init : () -> ( Model, Cmd Msg )
@@ -76,7 +78,6 @@ init _ =
     { room = Room.init1
     , mouseDragPos = Nothing
     , mouseDown = False
-    , clickPosDebug = Point2d.origin
     , zoomScale = 0.3
     , successAnimation = Just (SuccessAnimation 0 Nothing)
     }
@@ -223,58 +224,168 @@ viewDiagramNormal model =
         [ viewRayNormal model
         , Room.view model.room |> Svg.map RoomMsg
         ]
-        |> Svg.at (Shared.pixelsPerMeter 0.5)
+        |> Svg.at Shared.pixelsPerMeter
         |> Svg.relativeTo Shared.topLeftFrame
-
+        
+viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
-    Svg.g []
-        [ viewRaySuccess model animation
+    let 
+        ray = raySuccess model animation 
+        rooms =
+            reflectedRooms (projectedSightline model.room) model.room []
+                |> List.reverse
+                |> List.take (animation.step + 1) 
+
+        focusPoint = 
+            rooms 
+                |> List.map (.wallShape >> Polygon2d.vertices)
+                |> List.concat
+                |> Polygon2d.convexHull
+                |> Polygon2d.centroid
+                |> Maybe.withDefault (Sightray.startPos ray.start)
+    in
+    Svg.g [ ] 
+        [ raySuccess model animation
+            |> Sightray.view
+        , Svg.lineSegment2d [ Attr.fill "none", Attr.strokeWidth "0.03", Attr.stroke "black" ]
+            (LineSegment2d.from model.room.viewerPos (Sightray.startPos ray.start))
+        , rooms
+            |> List.map (Room.view >> Svg.map RoomMsg)
+            |> Svg.g [ Attr.opacity "0.3" ]
         , Room.view model.room |> Svg.map RoomMsg
         ]
-        |> Svg.at (Shared.pixelsPerMeter 0.3)--(0.6 ^ toFloat animation.step))
+        |> Svg.translateBy (Vector2d.from focusPoint Point2d.origin)
+        |> Svg.at (Shared.pixelsPerMeter 
+            |> Quantity.multiplyBy (toFloat (animation.step + 1) ^ -0.9)
+        )
         |> Svg.relativeTo Shared.topLeftFrame
 
+reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
+reflectedRooms sightline room roomsAcc = 
+    Sightray.nextBounce room.wallShape sightline
+        |> Maybe.map (\bounce -> 
+            reflectedRooms 
+                (LineSegment2d.from bounce.point (LineSegment2d.endPoint sightline))
+                (room |> Room.interpReflect bounce.axis 1)
+                (room :: roomsAcc))
+        |> Maybe.withDefault (room :: roomsAcc)
 
+type ApparentRoom 
+    = ActualRoom Room.Model
+    | ReflectionOf ApparentRoom Sightray.MirrorBounce
+
+computeApparentRoom : ApparentRoom -> Room.Model 
+computeApparentRoom ar =
+    case ar of 
+        ActualRoom room -> room
+        ReflectionOf twin bounce ->
+            computeApparentRoom twin
+                |> Room.interpReflect bounce.axis 1
+
+apparentHallway : ApparentRoom -> List Room.Model 
+apparentHallway ar = 
+    case ar of 
+        ActualRoom room -> [ room ]
+        ReflectionOf twin _ ->
+            computeApparentRoom ar :: apparentHallway twin
+
+lastApparentRoom : Room.Model -> List Sightray.MirrorBounce -> ApparentRoom
+lastApparentRoom room bounces = 
+    case bounces of 
+        [] -> ActualRoom room
+        b :: bs -> 
+            ReflectionOf (lastApparentRoom room bs) b
+
+bouncesToHallway room bounces = 
+    lastApparentRoom room bounces
+        |> apparentHallway
+
+
+
+flipRoom : Sightray.MirrorBounce -> Room.Model -> Room.Model
+flipRoom bounce =
+    Room.interpReflect bounce.axis 1
+
+
+reflectedRoom bounces room =
+    case bounces of
+        [] -> room
+        b :: bs ->
+            room 
+                |> Room.interpReflect b.axis 1
+                |> reflectedRoom bs
+                
+-- reflectedRooms : Model -> Shared.SuccessAnimation -> List Room.Model
+-- reflectedRooms model animation =
+--     rayNormal model
+--         |> .bounces 
+--         |> List.inits
+--         |> List.map (\bounces -> reflectedRoom bounces model.room)
+
+
+-- viewDiagramSuccess model animation = 
+--     reflectionHallway model animation
+--         |> List.map (\(room, ray) -> viewRoomWithRay room ray)
+--         |> Svg.g []
+--         |> Svg.at (Shared.pixelsPerMeter 0.3)--(0.6 ^ toFloat animation.step))
+--         |> Svg.relativeTo Shared.topLeftFrame
+
+-- reflectionHallway : Model -> Shared.SuccessAnimation -> Hallway
+-- reflectionHallway model ani =
+
+
+-- type alias Hallway = 
+--     { closeRoom : Room
+--     , farRoom : Room
+--     , farRoomRay : Sightray
+--     }
+
+-- viewRoomWithRay : Room.Model -> Sightray -> Svg Msg
+-- viewRoomWithRay room ray =
+--     Svg.g [] [] -- TODO
+
+rayNormal model =
+    Sightray.fromRoomAndProjectedPath model.room.wallShape
+        (Room.projectedSightline model.room)
+    
 
 viewRayNormal : Model -> Svg Msg
 viewRayNormal model =
-    Sightray.fromRoomAndProjectedPath model.room.wallShape
-        (Room.projectedSightline model.room)
-        |> Sightray.vertices
-        |> Polyline2d.fromVertices
-        |> Svg.polyline2d
-            [ Attr.fill "none" 
-            , Attr.stroke "black"
-            , Attr.strokeWidth "0.03"
-            , Attr.strokeDasharray "0.05"
-            ]
+    rayNormal model
+        |> Sightray.view
+
+raySuccess : Model -> SuccessAnimation -> Sightray
+raySuccess model animation = 
+    let normal = rayNormal model in
+    normal
+        |> Sightray.unravel
+        |> Array.fromList
+        |> Array.get animation.step
+        |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
+        |> Maybe.withDefault normal
 
 viewRaySuccess : Model -> SuccessAnimation -> Svg Msg
 viewRaySuccess model animation =
     let
-        normalRay = 
-            Sightray.fromRoomAndProjectedPath model.room.wallShape
-                (Room.projectedSightline model.room)
-
-        (successRay, centerPoint) = 
-            normalRay
-                |> Sightray.unravel
-                |> Array.fromList
-                |> (\rs -> Array.get animation.step rs)
-                |> Maybe.map (\r -> 
-                    case Sightray.tail r of 
-                        Nothing -> (r, Sightray.startPos r.start)
-                        Just (bounce, tail) ->
-                            ( tail 
-                                -- |> Sightray.interpReflect bounce.axis 
-                                --     (animation.transitionPct |> Maybe.withDefault 0)
-                            , bounce.point
-                            )
-                )
-                    -- ( { r | start = Sightray.updateStartPos (\_ -> model.room.viewerPos) r.start }
-                    -- , Sightray.startPos r.start
-                    -- ))
-                |> Maybe.withDefault (normalRay, model.room.viewerPos)  
+        -- (successRay, centerPoint) = 
+        --     rayNormal model
+        --         |> Sightray.unravel
+        --         |> Array.fromList
+        --         |> (\rs -> Array.get animation.step rs)
+        --         |> Maybe.map (\r -> 
+        --             case Sightray.tail r of 
+        --                 Nothing -> (r, Sightray.startPos r.start)
+        --                 Just (bounce, tail) ->
+        --                     ( tail 
+        --                         -- |> Sightray.interpReflect bounce.axis 
+        --                         --     (animation.transitionPct |> Maybe.withDefault 0)
+        --                     , bounce.point
+        --                     )
+        --         )
+        --             -- ( { r | start = Sightray.updateStartPos (\_ -> model.room.viewerPos) r.start }
+        --             -- , Sightray.startPos r.start
+        --             -- ))
+        --         |> Maybe.withDefault (rayNormal model, model.room.viewerPos)  
         
         lineAttrs color = 
             [ Attr.fill "none" 
@@ -282,13 +393,17 @@ viewRaySuccess model animation =
             , Attr.strokeWidth "0.03"
             , Attr.strokeDasharray "0.05"
             ]
+
+        raySucc = 
+            raySuccess model animation 
     in
-    successRay 
+    raySucc
         |> Sightray.vertices
         |> Polyline2d.fromVertices
         |> (\poly -> Svg.g [] 
             [ Svg.polyline2d (lineAttrs "black") poly 
-            , Svg.lineSegment2d (lineAttrs "red") (LineSegment2d.from model.room.viewerPos centerPoint)
+            , Svg.lineSegment2d (lineAttrs "red") 
+                (LineSegment2d.from model.room.viewerPos (Sightray.startPos raySucc.start))
             ])
             
     
@@ -338,3 +453,7 @@ svgToSceneCoords localFrame svg =
         |> Svg.placeIn localFrame
 
 
+debugLogF : (a -> b) -> String -> a -> a
+debugLogF f str a =
+    let _ = Debug.log str (f a) in 
+    a

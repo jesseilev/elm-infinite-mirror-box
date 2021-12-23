@@ -32,10 +32,9 @@ type SceneCoords = SceneCoords
 {- origin point at the top left of the frame, x -> right, y -> down -}
 type TopLeftCoords = TopLeftCoords 
 
-pixelsPerMeter zoomScale = 
+pixelsPerMeter = 
     pixels 100 
         |> Quantity.per (Length.meters 1)
-        |> Quantity.multiplyBy zoomScale
 
 -- Frames --
 
@@ -141,3 +140,7 @@ type alias SuccessAnimation =
     { step : Int 
     , transitionPct : Maybe Float
     }
+
+
+colors = 
+    { blue1 = "#9999ff"}

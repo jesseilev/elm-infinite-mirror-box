@@ -1,4 +1,4 @@
-module Room exposing (Model, init1, Msg, update, mouseDragMsg, view, projectedSightline)
+module Room exposing (Model, init1, Msg, update, mouseDragMsg, view, projectedSightline, interpReflect)
 
 import Array
 import Angle exposing (Angle)
@@ -73,7 +73,7 @@ init1 =
             ]
     , viewerPos = Point2d.meters 0.3 -0.7
     , viewerDirection = Direction2d.fromAngle (Angle.degrees 50)
-    , sightDistance = Length.meters 14.5
+    , sightDistance = Length.meters 8.0
     , targetPos = Point2d.meters 1.5 0.2
     , trees = 
         [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
@@ -152,8 +152,8 @@ view model =
             Svg.g [] <| 
                 [ Svg.polygon2d 
                     [ Attr.fill "none"
-                    , Attr.strokeWidth "0.02"
-                    , Attr.stroke "black"
+                    , Attr.strokeWidth "0.05"
+                    , Attr.stroke Shared.colors.blue1
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
                 , viewRoomItem <| RoomItem.init model.viewerPos RoomItem.emojis.cat

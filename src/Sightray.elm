@@ -1,13 +1,17 @@
 module Sightray exposing (..)
 
 import Axis2d
+import Geometry.Svg as Svg
 import LineSegment2d exposing (LineSegment2d)
 import List.Nonempty
 import Maybe.Extra as Maybe
 import Point2d
 import Polygon2d
+import Polyline2d
 import RoomItem exposing (RoomItem)
 import Shared exposing (..)
+import Svg exposing (Svg)
+import Svg.Attributes as Attr
 
 type alias Sightray = 
     { start : RayStart 
@@ -183,3 +187,18 @@ interpReflectBounce axis pct bounce =
     , axis = newAxis
     , point = interpReflectPoint axis pct bounce.point 
     }
+
+
+-- VIEW 
+
+view : Sightray -> Svg msg
+view ray = 
+    ray 
+        |> vertices
+        |> Polyline2d.fromVertices
+        |> Svg.polyline2d
+            [ Attr.fill "none" 
+            , Attr.stroke "black"
+            , Attr.strokeWidth "0.03"
+            , Attr.strokeDasharray "0.05"
+            ]
