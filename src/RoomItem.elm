@@ -70,6 +70,8 @@ emojis =
     , pineTree = "🌲"
     , palmTree = "🌴"
     , cat = "🐈‍⬛"
+    , camera = "📷"
+    , cameraFlash = "📸"
     , parrot = "🦜"
     }
 

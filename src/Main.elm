@@ -166,19 +166,33 @@ update msg model =
 checkSuccess : Model -> Model 
 checkSuccess model = 
     let 
+        ray = 
+            rayNormal model
+
         sightEnd = 
-            rayNormal model |> .end |> Sightray.endPos 
+            ray |> .end |> Sightray.endPos 
 
         targetHit = 
             RoomItem.containsPoint sightEnd (targetItem model)
+                && Sightray.length ray == model.room.sightDistance
 
         newAnimation = 
             case model.successAnimation of 
                 Nothing -> 
-                    if targetHit then Just (Shared.SuccessAnimation 0 Nothing) else Nothing
-                Just ani -> Just ani
+                    if targetHit then 
+                        Just (Shared.SuccessAnimation 0 Nothing)
+                    else 
+                        Nothing
+                Just ani -> 
+                    Just ani
+
+        roomStatus ani = 
+            if Maybe.isJust ani then Room.TakingPic else Room.LookingAround
     in
-        { model | successAnimation = newAnimation }
+        { model 
+            | successAnimation = newAnimation 
+            , room = Room.update (Room.setStatusMsg <| roomStatus newAnimation) model.room
+        }
 
 -- TODO just make it an actual Item in the first place
 targetItem model =
@@ -246,12 +260,13 @@ svgContainer model =
             ]
         ]
 
+viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
     Svg.g []
-        [ viewRayNormal model
+        [ Sightray.view (rayNormal model)
         , Room.view model.room |> Svg.map RoomMsg
         ]
-        |> Svg.at Shared.pixelsPerMeter
+        |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.topLeftFrame
         
 viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
@@ -282,9 +297,7 @@ viewDiagramSuccess model animation =
         , Room.view model.room |> Svg.map RoomMsg
         ]
         |> Svg.translateBy (Vector2d.from focusPoint Point2d.origin)
-        |> Svg.at (Shared.pixelsPerMeter 
-            |> Quantity.multiplyBy (toFloat (animation.step + 1) ^ -0.9)
-        )
+        |> Svg.at (pixelsPerMeterWithZoomScale (toFloat (animation.step + 1) ^ -0.9))
         |> Svg.relativeTo Shared.topLeftFrame
 
 reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
@@ -296,6 +309,78 @@ reflectedRooms sightline room roomsAcc =
                 (room |> Room.interpReflect bounce.axis 1)
                 (room :: roomsAcc))
         |> Maybe.withDefault (room :: roomsAcc)
+
+rayNormal : Model -> Sightray
+rayNormal model =
+    Sightray.fromRoomAndProjectedPath model.room
+        (Room.projectedSightline model.room)
+
+raySuccess : Model -> SuccessAnimation -> Sightray
+raySuccess model animation = 
+    let normal = rayNormal model in
+    normal
+        |> Sightray.unravel
+        |> Array.fromList
+        |> Array.get animation.step
+        |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
+        |> Maybe.withDefault normal
+            
+    
+
+viewAnimationButtons : Model -> Element Msg 
+viewAnimationButtons model = 
+    model.successAnimation
+        |> Maybe.map (\_ ->
+            El.row 
+                [ El.centerX 
+                , El.spacing 20 
+                ]
+                [ Input.button []
+                    { onPress = Just (StepAnimation -1)
+                    , label = El.text "<"
+                    }
+                , Input.button []
+                    { onPress = Just (StepAnimation 1)
+                    , label = El.text ">"
+                    }
+                ])
+        |> Maybe.withDefault El.none
+
+-- Frame, Units, Conversions --
+
+pixelsPerMeterWithZoomScale zoomScale = 
+    Shared.pixelsPerMeter
+        |> Quantity.multiplyBy zoomScale
+
+topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
+topLeftFrame = 
+    Frame2d.atOrigin
+        |> Frame2d.translateBy
+            (Vector2d.xy
+                (pixels <| -constants.containerWidth / 2.0)
+                (pixels <| constants.containerHeight / 2.0))
+        |> Frame2d.reverseY
+
+mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
+mouseToSceneCoords zoomScale (x, y) = 
+    Point2d.pixels x y
+        |> Point2d.placeIn topLeftFrame
+        |> Point2d.at_ (pixelsPerMeterWithZoomScale zoomScale)
+
+svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
+svgToSceneCoords localFrame svg =
+    svg 
+        |> Svg.mirrorAcross Axis2d.x 
+        |> Svg.placeIn localFrame
+
+
+debugLogF : (a -> b) -> String -> a -> a
+debugLogF f str a =
+    let _ = Debug.log str (f a) in 
+    a
+
+
+
 
 type ApparentRoom 
     = ActualRoom Room.Model
@@ -342,146 +427,3 @@ reflectedRoom bounces room =
                 |> Room.interpReflect b.axis 1
                 |> reflectedRoom bs
                 
--- reflectedRooms : Model -> Shared.SuccessAnimation -> List Room.Model
--- reflectedRooms model animation =
---     rayNormal model
---         |> .bounces 
---         |> List.inits
---         |> List.map (\bounces -> reflectedRoom bounces model.room)
-
-
--- viewDiagramSuccess model animation = 
---     reflectionHallway model animation
---         |> List.map (\(room, ray) -> viewRoomWithRay room ray)
---         |> Svg.g []
---         |> Svg.at (Shared.pixelsPerMeter 0.3)--(0.6 ^ toFloat animation.step))
---         |> Svg.relativeTo Shared.topLeftFrame
-
--- reflectionHallway : Model -> Shared.SuccessAnimation -> Hallway
--- reflectionHallway model ani =
-
-
--- type alias Hallway = 
---     { closeRoom : Room
---     , farRoom : Room
---     , farRoomRay : Sightray
---     }
-
--- viewRoomWithRay : Room.Model -> Sightray -> Svg Msg
--- viewRoomWithRay room ray =
---     Svg.g [] [] -- TODO
-
-rayNormal model =
-    Sightray.fromRoomAndProjectedPath model.room.wallShape
-        (Room.projectedSightline model.room)
-    
-
-viewRayNormal : Model -> Svg Msg
-viewRayNormal model =
-    rayNormal model
-        |> Sightray.view
-
-raySuccess : Model -> SuccessAnimation -> Sightray
-raySuccess model animation = 
-    let normal = rayNormal model in
-    normal
-        |> Sightray.unravel
-        |> Array.fromList
-        |> Array.get animation.step
-        |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
-        |> Maybe.withDefault normal
-
-viewRaySuccess : Model -> SuccessAnimation -> Svg Msg
-viewRaySuccess model animation =
-    let
-        -- (successRay, centerPoint) = 
-        --     rayNormal model
-        --         |> Sightray.unravel
-        --         |> Array.fromList
-        --         |> (\rs -> Array.get animation.step rs)
-        --         |> Maybe.map (\r -> 
-        --             case Sightray.tail r of 
-        --                 Nothing -> (r, Sightray.startPos r.start)
-        --                 Just (bounce, tail) ->
-        --                     ( tail 
-        --                         -- |> Sightray.interpReflect bounce.axis 
-        --                         --     (animation.transitionPct |> Maybe.withDefault 0)
-        --                     , bounce.point
-        --                     )
-        --         )
-        --             -- ( { r | start = Sightray.updateStartPos (\_ -> model.room.viewerPos) r.start }
-        --             -- , Sightray.startPos r.start
-        --             -- ))
-        --         |> Maybe.withDefault (rayNormal model, model.room.viewerPos)  
-        
-        lineAttrs color = 
-            [ Attr.fill "none" 
-            , Attr.stroke color
-            , Attr.strokeWidth "0.03"
-            , Attr.strokeDasharray "0.05"
-            ]
-
-        raySucc = 
-            raySuccess model animation 
-    in
-    raySucc
-        |> Sightray.vertices
-        |> Polyline2d.fromVertices
-        |> (\poly -> Svg.g [] 
-            [ Svg.polyline2d (lineAttrs "black") poly 
-            , Svg.lineSegment2d (lineAttrs "red") 
-                (LineSegment2d.from model.room.viewerPos (Sightray.startPos raySucc.start))
-            ])
-            
-    
-
-viewAnimationButtons : Model -> Element Msg 
-viewAnimationButtons model = 
-    El.row 
-        [ El.centerX 
-        , El.spacing 20 
-        , Border.width (if Maybe.isJust model.successAnimation then 2 else 0)
-        ]
-        [ Input.button []
-            { onPress = Just (StepAnimation -1)
-            , label = El.text "<"
-            }
-        , Input.button []
-            { onPress = Just (StepAnimation 1)
-            , label = El.text ">"
-            }
-        ]
-
--- Frame, Units, Conversions --
-
-pixelsPerMeter zoomScale = 
-    pixels 100 
-        |> Quantity.per (Length.meters 1)
-        |> Quantity.multiplyBy zoomScale
-
-topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-topLeftFrame = 
-    Frame2d.atOrigin
-        |> Frame2d.translateBy
-            (Vector2d.xy
-                (pixels <| -constants.containerWidth / 2.0)
-                (pixels <| constants.containerHeight / 2.0))
-        |> Frame2d.reverseY
-
-mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
-mouseToSceneCoords zoomScale (x, y) = 
-    Point2d.pixels x y
-        |> Point2d.placeIn topLeftFrame
-        |> Point2d.at_ (pixelsPerMeter zoomScale)
-
-svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
-svgToSceneCoords localFrame svg =
-    svg 
-        |> Svg.mirrorAcross Axis2d.x 
-        |> Svg.placeIn localFrame
-
-
-debugLogF : (a -> b) -> String -> a -> a
-debugLogF f str a =
-    let _ = Debug.log str (f a) in 
-    a

@@ -175,6 +175,81 @@ pathSegments path =
 
 
 
+-- reflectedRooms : Model -> Shared.SuccessAnimation -> List Room.Model
+-- reflectedRooms model animation =
+--     rayNormal model
+--         |> .bounces 
+--         |> List.inits
+--         |> List.map (\bounces -> reflectedRoom bounces model.room)
+
+
+-- viewDiagramSuccess model animation = 
+--     reflectionHallway model animation
+--         |> List.map (\(room, ray) -> viewRoomWithRay room ray)
+--         |> Svg.g []
+--         |> Svg.at (Shared.pixelsPerMeter 0.3)--(0.6 ^ toFloat animation.step))
+--         |> Svg.relativeTo Shared.topLeftFrame
+
+-- reflectionHallway : Model -> Shared.SuccessAnimation -> Hallway
+-- reflectionHallway model ani =
+
+
+-- type alias Hallway = 
+--     { closeRoom : Room
+--     , farRoom : Room
+--     , farRoomRay : Sightray
+--     }
+
+-- viewRoomWithRay : Room.Model -> Sightray -> Svg Msg
+-- viewRoomWithRay room ray =
+--     Svg.g [] [] -- TODO
+
+
+
+viewRaySuccess : Model -> SuccessAnimation -> Svg Msg
+viewRaySuccess model animation =
+    let
+        -- (successRay, centerPoint) = 
+        --     rayNormal model
+        --         |> Sightray.unravel
+        --         |> Array.fromList
+        --         |> (\rs -> Array.get animation.step rs)
+        --         |> Maybe.map (\r -> 
+        --             case Sightray.tail r of 
+        --                 Nothing -> (r, Sightray.startPos r.start)
+        --                 Just (bounce, tail) ->
+        --                     ( tail 
+        --                         -- |> Sightray.interpReflect bounce.axis 
+        --                         --     (animation.transitionPct |> Maybe.withDefault 0)
+        --                     , bounce.point
+        --                     )
+        --         )
+        --             -- ( { r | start = Sightray.updateStartPos (\_ -> model.room.viewerPos) r.start }
+        --             -- , Sightray.startPos r.start
+        --             -- ))
+        --         |> Maybe.withDefault (rayNormal model, model.room.viewerPos)  
+        
+        lineAttrs color = 
+            [ Attr.fill "none" 
+            , Attr.stroke color
+            , Attr.strokeWidth "0.03"
+            , Attr.strokeDasharray "0.05"
+            ]
+
+        raySucc = 
+            raySuccess model animation 
+    in
+    raySucc
+        |> Sightray.vertices
+        |> Polyline2d.fromVertices
+        |> (\poly -> Svg.g [] 
+            [ Svg.polyline2d (lineAttrs "black") poly 
+            , Svg.lineSegment2d (lineAttrs "red") 
+                (LineSegment2d.from model.room.viewerPos (Sightray.startPos raySucc.start))
+            ])
+
+
+
 
 
 -- viewReflectedRooms : Model -> Svg Msg 

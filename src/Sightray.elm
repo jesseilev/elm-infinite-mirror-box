@@ -2,12 +2,14 @@ module Sightray exposing (..)
 
 import Axis2d
 import Geometry.Svg as Svg
+import Length exposing (Length)
 import LineSegment2d exposing (LineSegment2d)
 import List.Nonempty
 import Maybe.Extra as Maybe
 import Point2d
 import Polygon2d
 import Polyline2d
+import Room
 import RoomItem exposing (RoomItem)
 import Shared exposing (..)
 import Svg exposing (Svg)
@@ -41,8 +43,8 @@ noBounces : RayStart -> RayEnd -> Sightray
 noBounces start end = 
     Sightray start [] end
 
-fromRoomAndProjectedPath : Polygon -> LineSegment -> Sightray
-fromRoomAndProjectedPath roomShape projectedPath = 
+fromRoomAndProjectedPath : Room.Model -> LineSegment -> Sightray
+fromRoomAndProjectedPath room projectedPath = 
     let 
         (projectedStart, projectedEnd) =
             LineSegment2d.endpoints projectedPath
@@ -52,11 +54,11 @@ fromRoomAndProjectedPath roomShape projectedPath =
                 |> LineSegment2d.mirrorAcross bounce.axis
 
         recurse bounce = 
-            fromRoomAndProjectedPath roomShape (nextProjectedPath bounce)
+            fromRoomAndProjectedPath room (nextProjectedPath bounce)
                 |> (\ray -> { ray | start = updateStartPos (\_ -> projectedStart) ray.start })
                 |> addBounce bounce
     in
-    nextBounce roomShape projectedPath 
+    nextBounce room.wallShape projectedPath 
         |> Maybe.map recurse
         |> Maybe.withDefault 
             (noBounces (StartAtPlayer (LineSegment2d.startPoint projectedPath)) (TooFar projectedEnd))
@@ -165,6 +167,14 @@ unravel ray =
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
     startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
+
+polyline : Sightray -> Polyline
+polyline ray = 
+    ray |> vertices |> Polyline2d.fromVertices
+
+length : Sightray -> Length
+length ray =
+    ray |> polyline |> Polyline2d.length
 
 
 interpReflect : InterpolatedReflection Sightray

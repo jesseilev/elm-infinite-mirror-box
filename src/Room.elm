@@ -1,4 +1,15 @@
-module Room exposing (Model, init1, Msg, update, mouseDragMsg, view, projectedSightline, interpReflect)
+module Room exposing 
+    ( Model
+    , init1
+    , setStatusMsg
+    , Status(..)
+    , Msg
+    , update
+    , mouseDragMsg
+    , view
+    , projectedSightline
+    , interpReflect
+    )
 
 import Array
 import Angle exposing (Angle)
@@ -18,7 +29,6 @@ import Point2d exposing (Point2d)
 import Polyline2d
 import Polygon2d
 import RoomItem exposing (RoomItem)
-import Sightray exposing (Sightray)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import TypedSvg.Attributes
@@ -41,13 +51,13 @@ import Direction2d exposing (Direction2d)
 import Polyline2d exposing (Polyline2d)
 import RoomItem exposing (interpReflect)
 
-type alias Hallway =
-    { rooms : NonemptyList RoomWithRay }
+-- type alias Hallway =
+--     { rooms : NonemptyList RoomWithRay }
 
-type alias RoomWithRay = 
-    { roomStuff : () 
-    , sightray : Sightray
-    }
+-- type alias RoomWithRay = 
+--     { roomStuff : () 
+--     , sightray : Sightray
+--     }
 
 
 type alias NonemptyList a = List.Nonempty.Nonempty a
@@ -57,10 +67,13 @@ type alias Model =
     { wallShape : Polygon
     , viewerPos : Point
     , viewerDirection : Direction 
+    , status : Status
     , sightDistance : Quantity Float Meters
     , targetPos : Point
     , trees : List RoomItem
     }
+
+type Status = LookingAround | TakingPic
 
 init1 : Model 
 init1 =
@@ -71,8 +84,9 @@ init1 =
             , Point2d.meters 2.25 1.0
             , Point2d.meters -1.5 2.25
             ]
-    , viewerPos = Point2d.meters 0.3 -0.7
+    , viewerPos = Point2d.meters 0.35 -0.65
     , viewerDirection = Direction2d.fromAngle (Angle.degrees 50)
+    , status = LookingAround
     , sightDistance = Length.meters 8.0
     , targetPos = Point2d.meters 1.5 0.2
     , trees = 
@@ -118,11 +132,16 @@ interpReflect axis pct model =
 type Msg 
     = NoOp
     | MouseDragMsg Point Point
+    | SetStatus Status
     | RoomItemMsg RoomItem.Msg
 
 mouseDragMsg : Point -> Point -> Msg
 mouseDragMsg = 
     MouseDragMsg
+
+setStatusMsg : Status -> Msg 
+setStatusMsg = 
+    SetStatus
 
 update : Msg -> Model -> Model
 update msg model =
@@ -135,6 +154,10 @@ update msg model =
                 |> Maybe.map (Quantity.plus viewerAngle)
                 |> Maybe.withDefault viewerAngle
                 |> (\a -> { model | viewerDirection = Direction2d.fromAngle a })
+
+        SetStatus status ->
+            { model | status = status }
+
         _ -> 
             model
 
@@ -156,10 +179,18 @@ view model =
                     , Attr.stroke Shared.colors.blue1
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-                , viewRoomItem <| RoomItem.init model.viewerPos RoomItem.emojis.cat
+                , viewPlayer 
                 , viewRoomItem <| RoomItem.init model.targetPos RoomItem.emojis.parrot
                 ]
                 ++ (List.map viewRoomItem model.trees)        
+
+        viewPlayer = 
+            ( case model.status of 
+                LookingAround -> RoomItem.emojis.camera 
+                TakingPic -> RoomItem.emojis.cameraFlash
+            )
+                |> RoomItem.init model.viewerPos
+                |> viewRoomItem
     in
         roomSvg 
             -- |> Svg.at (Shared.pixelsPerMeter 0.3)
