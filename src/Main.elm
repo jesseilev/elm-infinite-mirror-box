@@ -52,6 +52,7 @@ import Sightray exposing (interpReflect)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
 import Room exposing (projectedSightline)
+import RoomItem
 
 main = 
     Browser.element
@@ -79,7 +80,7 @@ init _ =
     , mouseDragPos = Nothing
     , mouseDown = False
     , zoomScale = 0.3
-    , successAnimation = Just (SuccessAnimation 0 Nothing)
+    , successAnimation = Nothing --Just (SuccessAnimation 0 Nothing)
     }
         |> noCmds
 
@@ -89,7 +90,8 @@ init _ =
 type Msg 
     = NoOp
     | MouseDragAt (Point2d Meters SceneCoords)
-    | ToggleMouseDown Bool
+    | MouseDown
+    | MouseUp
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
     | RoomMsg Room.Msg
@@ -114,16 +116,20 @@ update msg model =
                 }
                     |> noCmds
 
-        ToggleMouseDown isDown -> 
-            { model | mouseDown = isDown, mouseDragPos = Nothing }
+        MouseDown -> 
+            { model | mouseDown = True, mouseDragPos = Nothing }
                 |> noCmds
 
-        -- MouseClickAt sceneOffsetPos -> 
-        --     { model 
-        --         -- | viewerPos = sceneOffsetPos |> Point2d.relativeTo (roomFrame model)
-        --         -- , clickPosDebug = sceneOffsetPos
-        --     }
-        --         |> noCmds
+        MouseUp -> 
+            { model | mouseDown = False, mouseDragPos = Nothing }
+                |> checkSuccess
+                |> noCmds
+
+        MouseClickAt sceneOffsetPos -> 
+            model 
+                |> checkSuccess
+                |> Debug.log "checked success"
+                |> noCmds
         
         AdjustZoom deltaY ->
             { model  
@@ -156,6 +162,27 @@ update msg model =
 
         _ ->
             model |> noCmds
+
+checkSuccess : Model -> Model 
+checkSuccess model = 
+    let 
+        sightEnd = 
+            rayNormal model |> .end |> Sightray.endPos 
+
+        targetHit = 
+            RoomItem.containsPoint sightEnd (targetItem model)
+
+        newAnimation = 
+            case model.successAnimation of 
+                Nothing -> 
+                    if targetHit then Just (Shared.SuccessAnimation 0 Nothing) else Nothing
+                Just ani -> Just ani
+    in
+        { model | successAnimation = newAnimation }
+
+-- TODO just make it an actual Item in the first place
+targetItem model =
+    RoomItem.init model.room.targetPos RoomItem.emojis.parrot
 
 
 -- SUBSCRIPTIONS --
@@ -196,16 +223,16 @@ view model =
 svgContainer : Model -> Html Msg
 svgContainer model =
     Html.div 
-        [ Pointer.onDown (\_ -> ToggleMouseDown True)
-        , Pointer.onUp (\_ -> ToggleMouseDown False |> Debug.log "mouse up!")
-        , Pointer.onLeave (\_ -> ToggleMouseDown False |> Debug.log "mouse left!")
+        [ Pointer.onDown (\_ -> MouseDown)
+        , Pointer.onUp (\_ -> MouseUp)
+        , Pointer.onLeave (\_ -> MouseUp)
         , Pointer.onMove (\event -> 
             if model.mouseDown then 
                 MouseDragAt (mouseToSceneCoords model.zoomScale event.pointer.offsetPos)
             else 
                 NoOp)
-        , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
-        , Mouse.onClick (\event -> if model.mouseDown then NoOp else MouseClickAt Point2d.origin)
+        -- , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
+        -- , Mouse.onClick (\event -> if model.mouseDown then NoOp else MouseClickAt Point2d.origin)
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
@@ -413,6 +440,7 @@ viewAnimationButtons model =
     El.row 
         [ El.centerX 
         , El.spacing 20 
+        , Border.width (if Maybe.isJust model.successAnimation then 2 else 0)
         ]
         [ Input.button []
             { onPress = Just (StepAnimation -1)

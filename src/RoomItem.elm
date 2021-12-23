@@ -2,6 +2,7 @@ module RoomItem exposing
     ( RoomItem
     , init
     , setPos
+    , containsPoint
     , emojis
     , Msg
     , view
@@ -13,7 +14,7 @@ import Circle2d
 import Direction2d
 import Color
 import Geometry.Svg as Svg
-import Length
+import Length exposing (Length)
 import Point2d
 import Shared exposing (Point)
 import Svg exposing (Svg)
@@ -22,7 +23,10 @@ import TypedSvg.Attributes
 import TypedSvg.Types exposing (Paint(..))
 import Vector2d 
 import Shared exposing (InterpolatedReflection)
-import Shared exposing (interpReflectPoint)
+import Shared exposing (Circle, interpReflectPoint)
+import Quantity exposing (Quantity)
+import Circle2d exposing (Circle2d)
+import Circle2d exposing (boundingBox)
 
 type alias RoomItem = 
     { pos : Point 
@@ -33,6 +37,9 @@ init : Point -> String -> RoomItem
 init = 
     RoomItem
 
+
+-- Transformations --
+
 setPos : Point -> RoomItem -> RoomItem
 setPos pos item = 
     updatePos (\_ -> pos) item
@@ -41,6 +48,21 @@ updatePos : (Point -> Point) -> RoomItem -> RoomItem
 updatePos upd item = 
     { item | pos = upd item.pos }
 
+
+
+-- Properties --
+
+containsPoint : Point -> RoomItem -> Bool
+containsPoint p item =
+    Circle2d.contains p (boundaryCircle item)
+
+boundaryCircle : RoomItem -> Circle
+boundaryCircle item = 
+    Circle2d.atPoint item.pos radius
+
+radius : Length 
+radius = 
+    Length.meters 0.25
 
 -- TODO make typesafe
 emojis = 
@@ -62,7 +84,7 @@ type Msg = NoOp
 view : RoomItem -> Svg Msg
 view item = 
     let
-        fontSize = 0.25
+        fontSize = Quantity.unwrap radius 
     in
     Svg.g [] 
         [ Svg.circle2d
@@ -71,7 +93,7 @@ view item =
             , Attr.strokeWidth "0.01"
             , Attr.stroke "lightGrey"
             ]
-            (Circle2d.atOrigin (Length.meters fontSize))
+            (boundaryCircle item)
         , Svg.text_ 
             [ Attr.fontSize (String.fromFloat fontSize)
             , Attr.x (-0.5 * fontSize |> String.fromFloat)
@@ -79,8 +101,8 @@ view item =
             ] 
             [ Svg.text item.emoji ]
             |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin item.pos)
         ]
-        |> Svg.translateBy (Vector2d.from Point2d.origin item.pos)
 
 
 interpReflect : InterpolatedReflection RoomItem
