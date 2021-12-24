@@ -1,9 +1,11 @@
 module Sightray exposing (..)
 
 import Axis2d
+import Circle2d
 import Geometry.Svg as Svg
 import Length exposing (Length)
 import LineSegment2d exposing (LineSegment2d)
+import List.Extra as List
 import List.Nonempty
 import Maybe.Extra as Maybe
 import Point2d
@@ -14,6 +16,9 @@ import RoomItem exposing (RoomItem)
 import Shared exposing (..)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
+import Quantity exposing (Quantity)
+import Html.Attributes exposing (start)
+import Point2d exposing (distanceFrom)
 
 type alias Sightray = 
     { start : RayStart 
@@ -27,7 +32,7 @@ type RayStart
 
 type RayEnd 
     = TooFar Point
-    | HitItem RoomItem
+    | EndAtItem Point RoomItem
 
 type alias MirrorBounce = 
     { axis : Axis
@@ -57,11 +62,15 @@ fromRoomAndProjectedPath room projectedPath =
             fromRoomAndProjectedPath room (nextProjectedPath bounce)
                 |> (\ray -> { ray | start = updateStartPos (\_ -> projectedStart) ray.start })
                 |> addBounce bounce
+
     in
-    nextBounce room.wallShape projectedPath 
-        |> Maybe.map recurse
-        |> Maybe.withDefault 
-            (noBounces (StartAtPlayer (LineSegment2d.startPoint projectedPath)) (TooFar projectedEnd))
+    case nextIntersection room projectedPath of
+        Just (IntersectMirror bounce) -> 
+            recurse bounce
+        Just (IntersectItem point item) -> 
+            noBounces (StartAtPlayer projectedStart) (EndAtItem point item)
+        _ ->
+            noBounces (StartAtPlayer projectedStart) (TooFar projectedEnd)
                 -- TODO dont hardcode the start and end types
  
 
@@ -107,7 +116,7 @@ updateEndPos upd end =
     let newPos = upd (endPos end) in
     case end of 
         TooFar _ -> TooFar newPos
-        HitItem item -> HitItem (RoomItem.setPos newPos item)
+        EndAtItem _ item -> EndAtItem newPos item
 
 -- Properties --
 
@@ -121,25 +130,69 @@ endPos : RayEnd -> Point
 endPos re =
     case re of 
         TooFar p -> p
-        HitItem i -> i.pos
+        EndAtItem p _ -> p
 
-nextBounce : Polygon -> LineSegment -> Maybe MirrorBounce
-nextBounce roomShape projectedPath =
+nextIntersection : Room.Model -> LineSegment -> Maybe Intersection
+nextIntersection room projectedPath =
     let
         -- "trim" off the very beginning of the sightline by shrinking it slightly
         -- we dont want to count the start point as an intersection
         -- which will happen for all recursive calls since the sightline will start on a wall
         trimmedSightline = 
-            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedPath) 0.999 projectedPath    
+            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedPath) 0.999 projectedPath   
+
+        startPoint = 
+            LineSegment2d.startPoint projectedPath
+
+        nextMirrorBounceM = 
+            Polygon2d.edges room.wallShape
+                |> List.map (\e -> 
+                    (LineSegment2d.intersectionPoint trimmedSightline e
+                        |> Maybe.map (Tuple.pair e)))
+                |> Maybe.orList
+                |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
+                |> Maybe.map (\(wall, point, dir) -> 
+                    { wall = wall, point = point, axis = Axis2d.withDirection dir point })
+        
+        checkItemIntersection item point = 
+            if RoomItem.containsPoint point item then 
+                Just (item, point, Point2d.distanceFrom point startPoint) 
+            else 
+                Nothing
+
+        isInitialPlayerItem (item, point, distance) = 
+            startPoint == room.viewerPos
+                && item == Room.playerItem room
+                && (distance |> Quantity.lessThan RoomItem.radius)
+
+        itemHitM =
+            nextMirrorBounceM 
+                |> Maybe.map (.point >> LineSegment2d.from startPoint)
+                |> Maybe.withDefault projectedPath
+                |> segmentSamplePoints
+                |> List.lift2 checkItemIntersection (Room.allItems room) 
+                |> Maybe.values
+                |> List.sortBy (\(_, _, distance) -> Quantity.unwrap distance)
+                |> List.filter (\info -> not (isInitialPlayerItem info))
+                -- |> Shared.debugLogF List.length "hit items length"
+                |> List.head
+
     in
-    Polygon2d.edges roomShape
-        |> List.map (\e -> 
-            (LineSegment2d.intersectionPoint trimmedSightline e
-                |> Maybe.map (Tuple.pair e)))
-        |> Maybe.orList
-        |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
-        |> Maybe.map (\(wall, point, dir) -> 
-            { wall = wall, point = point, axis = Axis2d.withDirection dir point })
+        case itemHitM of 
+            Just (item, point, _) -> Just (IntersectItem point item)
+            Nothing -> Maybe.map IntersectMirror nextMirrorBounceM
+
+segmentSamplePoints : LineSegment -> List Point
+segmentSamplePoints line = 
+    let sampleCount = 25 in
+    List.range 0 sampleCount 
+        |> List.map (\i -> 
+            LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
+        )
+
+type Intersection 
+    = IntersectMirror MirrorBounce
+    | IntersectItem Point RoomItem
 
 tail : Sightray -> Maybe (MirrorBounce, Sightray)
 tail raypath =
@@ -203,12 +256,23 @@ interpReflectBounce axis pct bounce =
 
 view : Sightray -> Svg msg
 view ray = 
+    ray |> polyline |> Svg.polyline2d lineAttrs
+
+lineAttrs : List (Svg.Attribute msg)
+lineAttrs = 
+    [ Attr.fill "none" 
+    , Attr.stroke "black"
+    , Attr.strokeWidth "0.03"
+    , Attr.strokeDasharray "0.05"
+    ]
+
+viewSamplePoints : Sightray -> Svg msg 
+viewSamplePoints ray = 
     ray 
-        |> vertices
-        |> Polyline2d.fromVertices
-        |> Svg.polyline2d
-            [ Attr.fill "none" 
-            , Attr.stroke "black"
-            , Attr.strokeWidth "0.03"
-            , Attr.strokeDasharray "0.05"
-            ]
+        |> polyline
+        |> Polyline2d.segments
+        |> List.map segmentSamplePoints
+        |> List.concat
+        |> List.map (\p -> Svg.circle2d [ Attr.fill "red" ] 
+            (Circle2d.atPoint p (Length.meters 0.02)))
+        |> Svg.g []

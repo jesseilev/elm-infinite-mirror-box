@@ -123,12 +123,13 @@ update msg model =
         MouseUp -> 
             { model | mouseDown = False, mouseDragPos = Nothing }
                 |> checkSuccess
+                |> Debug.log "mouse up"
                 |> noCmds
 
         MouseClickAt sceneOffsetPos -> 
             model 
                 |> checkSuccess
-                |> Debug.log "checked success"
+                |> Debug.log "mouse clicked"
                 |> noCmds
         
         AdjustZoom deltaY ->
@@ -174,17 +175,15 @@ checkSuccess model =
 
         targetHit = 
             RoomItem.containsPoint sightEnd (targetItem model)
-                && Sightray.length ray == model.room.sightDistance
+                && Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
+                    (Sightray.length ray) model.room.sightDistance
 
         newAnimation = 
-            case model.successAnimation of 
-                Nothing -> 
-                    if targetHit then 
-                        Just (Shared.SuccessAnimation 0 Nothing)
-                    else 
-                        Nothing
-                Just ani -> 
-                    Just ani
+            case (model.successAnimation, targetHit) of 
+                (Nothing, True) -> 
+                    Just (Shared.SuccessAnimation 0 Nothing)
+                _ ->
+                    model.successAnimation
 
         roomStatus ani = 
             if Maybe.isJust ani then Room.TakingPic else Room.LookingAround
@@ -223,10 +222,7 @@ view model =
             , El.centerY 
             ] 
             (El.column []
-                [ El.el 
-                    [ Border.solid
-                    , Border.width 2
-                    ] 
+                [ El.el [] 
                     (El.html (svgContainer model))
                 , viewAnimationButtons model
                 ]
@@ -289,7 +285,7 @@ viewDiagramSuccess model animation =
     Svg.g [ ] 
         [ raySuccess model animation
             |> Sightray.view
-        , Svg.lineSegment2d [ Attr.fill "none", Attr.strokeWidth "0.03", Attr.stroke "black" ]
+        , Svg.lineSegment2d Sightray.lineAttrs
             (LineSegment2d.from model.room.viewerPos (Sightray.startPos ray.start))
         , rooms
             |> List.map (Room.view >> Svg.map RoomMsg)
@@ -302,13 +298,14 @@ viewDiagramSuccess model animation =
 
 reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
 reflectedRooms sightline room roomsAcc = 
-    Sightray.nextBounce room.wallShape sightline
-        |> Maybe.map (\bounce -> 
+    case Sightray.nextIntersection room sightline of
+        Just (Sightray.IntersectMirror bounce) -> 
             reflectedRooms 
                 (LineSegment2d.from bounce.point (LineSegment2d.endPoint sightline))
                 (room |> Room.interpReflect bounce.axis 1)
-                (room :: roomsAcc))
-        |> Maybe.withDefault (room :: roomsAcc)
+                (room :: roomsAcc)
+        _ -> 
+            room :: roomsAcc
 
 rayNormal : Model -> Sightray
 rayNormal model =
@@ -325,8 +322,6 @@ raySuccess model animation =
         |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
         |> Maybe.withDefault normal
             
-    
-
 viewAnimationButtons : Model -> Element Msg 
 viewAnimationButtons model = 
     model.successAnimation
@@ -373,57 +368,3 @@ svgToSceneCoords localFrame svg =
         |> Svg.mirrorAcross Axis2d.x 
         |> Svg.placeIn localFrame
 
-
-debugLogF : (a -> b) -> String -> a -> a
-debugLogF f str a =
-    let _ = Debug.log str (f a) in 
-    a
-
-
-
-
-type ApparentRoom 
-    = ActualRoom Room.Model
-    | ReflectionOf ApparentRoom Sightray.MirrorBounce
-
-computeApparentRoom : ApparentRoom -> Room.Model 
-computeApparentRoom ar =
-    case ar of 
-        ActualRoom room -> room
-        ReflectionOf twin bounce ->
-            computeApparentRoom twin
-                |> Room.interpReflect bounce.axis 1
-
-apparentHallway : ApparentRoom -> List Room.Model 
-apparentHallway ar = 
-    case ar of 
-        ActualRoom room -> [ room ]
-        ReflectionOf twin _ ->
-            computeApparentRoom ar :: apparentHallway twin
-
-lastApparentRoom : Room.Model -> List Sightray.MirrorBounce -> ApparentRoom
-lastApparentRoom room bounces = 
-    case bounces of 
-        [] -> ActualRoom room
-        b :: bs -> 
-            ReflectionOf (lastApparentRoom room bs) b
-
-bouncesToHallway room bounces = 
-    lastApparentRoom room bounces
-        |> apparentHallway
-
-
-
-flipRoom : Sightray.MirrorBounce -> Room.Model -> Room.Model
-flipRoom bounce =
-    Room.interpReflect bounce.axis 1
-
-
-reflectedRoom bounces room =
-    case bounces of
-        [] -> room
-        b :: bs ->
-            room 
-                |> Room.interpReflect b.axis 1
-                |> reflectedRoom bs
-                

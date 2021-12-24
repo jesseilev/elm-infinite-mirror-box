@@ -3,6 +3,7 @@ module RoomItem exposing
     , init
     , setPos
     , containsPoint
+    , radius
     , emojis
     , Msg
     , view
@@ -64,6 +65,10 @@ radius : Length
 radius = 
     Length.meters 0.25
 
+interpReflect : InterpolatedReflection RoomItem
+interpReflect axis pct item =
+    item |> updatePos (interpReflectPoint axis pct)
+
 -- TODO make typesafe
 emojis = 
     { roundTree = "🌳"
@@ -83,8 +88,8 @@ type Msg = NoOp
 -- VIEW
 
 
-view : RoomItem -> Svg Msg
-view item = 
+view : Bool -> RoomItem -> Svg Msg
+view inFocus item = 
     let
         fontSize = Quantity.unwrap radius 
     in
@@ -92,7 +97,7 @@ view item =
         [ Svg.circle2d
             [ TypedSvg.Attributes.fill <| Paint Color.white
                 -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            , Attr.strokeWidth "0.01"
+            , Attr.strokeWidth <| if inFocus then "0.03" else "0"
             , Attr.stroke "lightGrey"
             ]
             (boundaryCircle item)
@@ -106,7 +111,3 @@ view item =
             |> Svg.translateBy (Vector2d.from Point2d.origin item.pos)
         ]
 
-
-interpReflect : InterpolatedReflection RoomItem
-interpReflect axis pct item =
-    item |> updatePos (interpReflectPoint axis pct)

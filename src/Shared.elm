@@ -143,4 +143,10 @@ type alias SuccessAnimation =
 
 
 colors = 
-    { blue1 = "#9999ff"}
+    { blue1 = "#88aaee"}
+
+
+debugLogF : (a -> b) -> String -> a -> a
+debugLogF f str a =
+    let _ = Debug.log str (f a) in 
+    a

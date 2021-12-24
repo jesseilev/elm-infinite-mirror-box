@@ -313,3 +313,51 @@ pointYAxisAt target frame =
         Frame2d.rotateBy angleDifference frame
 
 
+
+
+
+type ApparentRoom 
+    = ActualRoom Room.Model
+    | ReflectionOf ApparentRoom Sightray.MirrorBounce
+
+computeApparentRoom : ApparentRoom -> Room.Model 
+computeApparentRoom ar =
+    case ar of 
+        ActualRoom room -> room
+        ReflectionOf twin bounce ->
+            computeApparentRoom twin
+                |> Room.interpReflect bounce.axis 1
+
+apparentHallway : ApparentRoom -> List Room.Model 
+apparentHallway ar = 
+    case ar of 
+        ActualRoom room -> [ room ]
+        ReflectionOf twin _ ->
+            computeApparentRoom ar :: apparentHallway twin
+
+lastApparentRoom : Room.Model -> List Sightray.MirrorBounce -> ApparentRoom
+lastApparentRoom room bounces = 
+    case bounces of 
+        [] -> ActualRoom room
+        b :: bs -> 
+            ReflectionOf (lastApparentRoom room bs) b
+
+bouncesToHallway room bounces = 
+    lastApparentRoom room bounces
+        |> apparentHallway
+
+
+
+flipRoom : Sightray.MirrorBounce -> Room.Model -> Room.Model
+flipRoom bounce =
+    Room.interpReflect bounce.axis 1
+
+
+reflectedRoom bounces room =
+    case bounces of
+        [] -> room
+        b :: bs ->
+            room 
+                |> Room.interpReflect b.axis 1
+                |> reflectedRoom bs
+                

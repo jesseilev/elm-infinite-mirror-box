@@ -2,6 +2,8 @@ module Room exposing
     ( Model
     , init1
     , setStatusMsg
+    , allItems
+    , playerItem
     , Status(..)
     , Msg
     , update
@@ -96,6 +98,19 @@ init1 =
         ]
     }
 
+-- TODO just make these things actual items
+targetItem : Model -> RoomItem 
+targetItem model = 
+    RoomItem.init model.targetPos RoomItem.emojis.parrot
+
+playerItem : Model -> RoomItem 
+playerItem model = 
+    ( case model.status of 
+        LookingAround -> RoomItem.emojis.camera 
+        TakingPic -> RoomItem.emojis.cameraFlash
+    )
+        |> RoomItem.init model.viewerPos
+
 -- FUNCTIONS
 
 
@@ -126,6 +141,9 @@ interpReflect axis pct model =
         , trees = List.map (RoomItem.interpReflect axis pct) model.trees
     }
 
+allItems : Model -> List RoomItem
+allItems model = 
+    model.trees ++ [ targetItem model, playerItem model ]
 
 -- UPDATE
 
@@ -168,7 +186,7 @@ view model =
     let 
         viewRoomItem item = 
             RoomItem.init item.pos item.emoji
-                |> RoomItem.view
+                |> RoomItem.view True
                 |> Svg.map RoomItemMsg
 
         roomSvg =
@@ -179,18 +197,10 @@ view model =
                     , Attr.stroke Shared.colors.blue1
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-                , viewPlayer 
-                , viewRoomItem <| RoomItem.init model.targetPos RoomItem.emojis.parrot
+                , viewRoomItem <| playerItem model 
+                , viewRoomItem <| targetItem model
                 ]
                 ++ (List.map viewRoomItem model.trees)        
-
-        viewPlayer = 
-            ( case model.status of 
-                LookingAround -> RoomItem.emojis.camera 
-                TakingPic -> RoomItem.emojis.cameraFlash
-            )
-                |> RoomItem.init model.viewerPos
-                |> viewRoomItem
     in
         roomSvg 
             -- |> Svg.at (Shared.pixelsPerMeter 0.3)
