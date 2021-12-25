@@ -3,6 +3,7 @@ module Shared exposing (..)
 import Angle exposing (Angle)
 import Axis2d exposing (Axis2d)
 import Circle2d exposing (Circle2d)
+import Color
 import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
 import Length exposing (Meters)
@@ -143,7 +144,9 @@ type alias SuccessAnimation =
 
 
 colors = 
-    { blue1 = "#88aaee"}
+    { blue1 = "#88aaee"
+    , darkBackground = Color.rgb 0.6 0.6 0.6
+    }
 
 
 debugLogF : (a -> b) -> String -> a -> a

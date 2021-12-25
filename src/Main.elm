@@ -9,9 +9,12 @@ import Color
 import Convert
 import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
+import Element.Background as Background
 import Element.Border as Border
 import Element.Events
+import Element.Font as Font
 import Element.Input as Input
+import Element.Region as Region
 import VirtualDom
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
@@ -67,7 +70,7 @@ main =
 type alias Model = 
     { room : Room.Model
     , mouseDragPos : Maybe Point
-    , mouseDown : Bool
+    , dragging : Bool
     , zoomScale : Float
     , successAnimation : Maybe Shared.SuccessAnimation
     }
@@ -78,7 +81,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     { room = Room.init1
     , mouseDragPos = Nothing
-    , mouseDown = False
+    , dragging = False
     , zoomScale = 0.3
     , successAnimation = Nothing --Just (SuccessAnimation 0 Nothing)
     }
@@ -90,8 +93,8 @@ init _ =
 type Msg 
     = NoOp
     | MouseDragAt (Point2d Meters SceneCoords)
-    | MouseDown
-    | MouseUp
+    | DragStart
+    | DragStop
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
     | RoomMsg Room.Msg
@@ -102,7 +105,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model = 
     case msg of 
         MouseDragAt mousePosInScene ->
-            if not model.mouseDown then 
+            if not model.dragging then 
                 model |> noCmds 
             else 
                 { model 
@@ -112,24 +115,24 @@ update msg model =
                                 Room.update (Room.mouseDragMsg prevMouse mousePosInScene) model.room)
                             |> Maybe.withDefault model.room
                     , mouseDragPos = Just mousePosInScene
-                    , mouseDown = True
+                    , dragging = True
                 }
                     |> noCmds
 
-        MouseDown -> 
-            { model | mouseDown = True, mouseDragPos = Nothing }
+        DragStart -> 
+            { model | dragging = True, mouseDragPos = Nothing }
+                |> updateStatus
                 |> noCmds
 
-        MouseUp -> 
-            { model | mouseDown = False, mouseDragPos = Nothing }
-                |> checkSuccess
-                |> Debug.log "mouse up"
+        DragStop -> 
+            { model | dragging = False, mouseDragPos = Nothing }
+                |> updateSuccess
+                |> updateStatus
                 |> noCmds
 
         MouseClickAt sceneOffsetPos -> 
             model 
-                |> checkSuccess
-                |> Debug.log "mouse clicked"
+                |> updateSuccess
                 |> noCmds
         
         AdjustZoom deltaY ->
@@ -141,7 +144,7 @@ update msg model =
         StepAnimation stepDiff ->
             { model | successAnimation = model.successAnimation 
                 |> Maybe.map (\ani -> 
-                    { ani | step = ani.step + 1, transitionPct = Just 0 }
+                    { ani | step = ani.step + 1, transitionPct = Just 0.3 }
                 )
             }
                 |> noCmds
@@ -164,8 +167,8 @@ update msg model =
         _ ->
             model |> noCmds
 
-checkSuccess : Model -> Model 
-checkSuccess model = 
+updateSuccess : Model -> Model 
+updateSuccess model = 
     let 
         ray = 
             rayNormal model
@@ -184,14 +187,17 @@ checkSuccess model =
                     Just (Shared.SuccessAnimation 0 Nothing)
                 _ ->
                     model.successAnimation
-
-        roomStatus ani = 
-            if Maybe.isJust ani then Room.TakingPic else Room.LookingAround
     in
-        { model 
-            | successAnimation = newAnimation 
-            , room = Room.update (Room.setStatusMsg <| roomStatus newAnimation) model.room
-        }
+        { model | successAnimation = newAnimation }
+
+roomStatus model = 
+    case (model.successAnimation, model.dragging) of
+        (Just _, _) -> Room.TakingPic
+        (_, False) -> Room.Standing
+        (_, True) -> Room.LookingAround
+
+updateStatus model =
+    { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
 
 -- TODO just make it an actual Item in the first place
 targetItem model =
@@ -216,33 +222,87 @@ view model =
     El.layout 
         [ El.width El.fill
         , El.height El.fill 
+        -- , Background.color Shared.colors.darkBackground
         ]
         (El.el 
             [ El.centerX
             , El.centerY 
             ] 
-            (El.column []
-                [ El.el [] 
-                    (El.html (svgContainer model))
-                , viewAnimationButtons model
+            (El.column 
+                [ El.centerX 
+                , El.paddingXY 100 10
+                , El.spacing 40
+                , Font.size 17
+                , Font.family 
+                    [ Font.external
+                        { name = "Cantarell"
+                        , url = "https://fonts.googleapis.com/css?family=Cantarell"
+                        }
+                    ]
+                -- , Font.wordSpacing 4
+                , Font.color (El.rgb 0.35 0.35 0.35)
+                ]
+                [ El.el [ Region.heading 1, Font.size 30 ] <| El.text "Pat's Infinite Bird Box"
+                , viewParagraph patTheCatText
+                , viewParagraph birdBoxText
+                , El.column     
+                    [ El.centerX 
+                    , El.padding 40
+                    , El.spacing 20
+                    , Border.width 2
+                    , Border.color <| El.rgb 0.9 0.9 0.9
+                    -- , Background.color <| El.rgb 0.9 0.9 0.9
+                    ] 
+                    [ viewParagraph <| instructionsText model.room.sightDistance
+                    , El.el 
+                        [ El.centerX 
+                        ] 
+                        <| El.html (svgContainer model) 
+                    ]
                 ]
             )
         )
+
+viewParagraph text = 
+    El.paragraph 
+        [ El.paddingXY 0 0, El.spacing 12 ] 
+        [ El.text text ]
+
+
+patTheCatText = 
+    """Pat the Cat 🐈‍⬛ is an avid wildlife photographer. 
+    She recently bought a fancy new camera 📷, and is excited to test out its zoom 
+    abilities."""
+
+birdBoxText = 
+    """Arriving home, Pat enters her Infinite Bird Box, a small room with 4 
+    adjustable mirrors for walls. The room doesn't contain much, just Garrett the Parrot 🦜 and 
+    a few potted plants 🪴. But the way the light bounces around off the mirrored walls gives 
+    Pat the illusion of standing in a vast forest surrounded by many plants and birds:
+    some close by, and others far away..."""
+
+instructionsText sightDistance = 
+    "Your challenge: In the Infinite Bird Box below, click and drag to aim Pat's camera "
+    ++ "at the reflected image of a bird that appears to be " 
+    ++ String.fromFloat (Quantity.unwrap sightDistance)
+    ++ " meters away."
 
 
 svgContainer : Model -> Html Msg
 svgContainer model =
     Html.div 
-        [ Pointer.onDown (\_ -> MouseDown)
-        , Pointer.onUp (\_ -> MouseUp)
-        , Pointer.onLeave (\_ -> MouseUp)
+        [ Pointer.onDown (\_ -> 
+            if Maybe.isJust model.successAnimation then NoOp else DragStart)
+        , Pointer.onUp (\_ -> 
+            if Maybe.isJust model.successAnimation then StepAnimation 1 else DragStop)
+        , Pointer.onLeave (\_ -> DragStop)
         , Pointer.onMove (\event -> 
-            if model.mouseDown then 
+            if model.dragging then 
                 MouseDragAt (mouseToSceneCoords model.zoomScale event.pointer.offsetPos)
             else 
                 NoOp)
         -- , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
-        -- , Mouse.onClick (\event -> if model.mouseDown then NoOp else MouseClickAt Point2d.origin)
+        -- , Mouse.onClick (\event -> if model.dragging then NoOp else MouseClickAt Point2d.origin)
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
@@ -274,26 +334,28 @@ viewDiagramSuccess model animation =
                 |> List.reverse
                 |> List.take (animation.step + 1) 
 
-        focusPoint = 
+        centroid = 
             rooms 
                 |> List.map (.wallShape >> Polygon2d.vertices)
                 |> List.concat
                 |> Polygon2d.convexHull
                 |> Polygon2d.centroid
                 |> Maybe.withDefault (Sightray.startPos ray.start)
+
+        successAttrs = 
+            Sightray.lineAttrs "lightGreen" "0.05"
     in
     Svg.g [ ] 
-        [ raySuccess model animation
-            |> Sightray.view
-        , Svg.lineSegment2d Sightray.lineAttrs
+        [ Sightray.viewWithAttrs successAttrs ray
+        , Svg.lineSegment2d successAttrs
             (LineSegment2d.from model.room.viewerPos (Sightray.startPos ray.start))
         , rooms
             |> List.map (Room.view >> Svg.map RoomMsg)
-            |> Svg.g [ Attr.opacity "0.3" ]
+            |> Svg.g [ Attr.opacity "0.5" ]
         , Room.view model.room |> Svg.map RoomMsg
         ]
-        |> Svg.translateBy (Vector2d.from focusPoint Point2d.origin)
-        |> Svg.at (pixelsPerMeterWithZoomScale (toFloat (animation.step + 1) ^ -0.9))
+        |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
+        |> Svg.at (pixelsPerMeterWithZoomScale (toFloat (animation.step + 1) ^ -0.7))
         |> Svg.relativeTo Shared.topLeftFrame
 
 reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
@@ -319,7 +381,7 @@ raySuccess model animation =
         |> Sightray.unravel
         |> Array.fromList
         |> Array.get animation.step
-        |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
+        -- |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
         |> Maybe.withDefault normal
             
 viewAnimationButtons : Model -> Element Msg 
@@ -331,10 +393,6 @@ viewAnimationButtons model =
                 , El.spacing 20 
                 ]
                 [ Input.button []
-                    { onPress = Just (StepAnimation -1)
-                    , label = El.text "<"
-                    }
-                , Input.button []
                     { onPress = Just (StepAnimation 1)
                     , label = El.text ">"
                     }

@@ -3,19 +3,15 @@
 
 
 ## Features
-- render success animation 
-    - subtasks
-- item collision detection
-- ray interrupted on item collision
-- when user successfully hits target, success animation plays
+- render success animation smooth transitions
 - label angles
 - multple room arrangement challenges
 - when you complete one room, it moves to the next
-- angle subtending
-- make styles match brilliant styleguide
-- text prompt
+- text feedback when you take a pic and fail
 - cursor shows drag-to-rotate thingy
-- sightpath animated the dotted line towards the player
+- sightpath animates the dotted line towards the player
+- make styles match brilliant styleguide
+- angle subtending
 
 ## Internal
 - compute reflection bounce path
@@ -25,6 +21,7 @@
 
 ## Bugs
 
+- when sightray hits a corner the bounce escapes the room
 
 ## Feature F1
 ### Bugs

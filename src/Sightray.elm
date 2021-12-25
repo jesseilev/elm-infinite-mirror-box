@@ -255,14 +255,17 @@ interpReflectBounce axis pct bounce =
 -- VIEW 
 
 view : Sightray -> Svg msg
-view ray = 
-    ray |> polyline |> Svg.polyline2d lineAttrs
+view = 
+    viewWithAttrs (lineAttrs "white" "0.03")
 
-lineAttrs : List (Svg.Attribute msg)
-lineAttrs = 
+viewWithAttrs attrs ray = 
+    ray |> polyline |> Svg.polyline2d attrs
+
+lineAttrs : String -> String -> List (Svg.Attribute msg)
+lineAttrs color width = 
     [ Attr.fill "none" 
-    , Attr.stroke "black"
-    , Attr.strokeWidth "0.03"
+    , Attr.stroke color
+    , Attr.strokeWidth width
     , Attr.strokeDasharray "0.05"
     ]
 

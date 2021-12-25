@@ -74,6 +74,7 @@ emojis =
     { roundTree = "🌳"
     , pineTree = "🌲"
     , palmTree = "🌴"
+    , plant = "🪴"
     , cat = "🐈‍⬛"
     , camera = "📷"
     , cameraFlash = "📸"

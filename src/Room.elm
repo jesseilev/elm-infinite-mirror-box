@@ -75,7 +75,7 @@ type alias Model =
     , trees : List RoomItem
     }
 
-type Status = LookingAround | TakingPic
+type Status = Standing | LookingAround | TakingPic
 
 init1 : Model 
 init1 =
@@ -87,14 +87,14 @@ init1 =
             , Point2d.meters -1.5 2.25
             ]
     , viewerPos = Point2d.meters 0.35 -0.65
-    , viewerDirection = Direction2d.fromAngle (Angle.degrees 50)
-    , status = LookingAround
+    , viewerDirection = Direction2d.fromAngle (Angle.degrees -15)
+    , status = Standing
     , sightDistance = Length.meters 8.0
     , targetPos = Point2d.meters 1.5 0.2
     , trees = 
-        [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.roundTree
-        , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.roundTree
-        , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.pineTree
+        [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
+        , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
+        , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant
         ]
     }
 
@@ -106,6 +106,7 @@ targetItem model =
 playerItem : Model -> RoomItem 
 playerItem model = 
     ( case model.status of 
+        Standing -> RoomItem.emojis.cat
         LookingAround -> RoomItem.emojis.camera 
         TakingPic -> RoomItem.emojis.cameraFlash
     )
