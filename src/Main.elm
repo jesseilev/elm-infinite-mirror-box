@@ -35,6 +35,7 @@ import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
 import RayPath exposing (RayPath)
 import Room exposing (Model)
+import RoomItem exposing (RoomItem)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Convert exposing (lengthToPixels)
@@ -55,7 +56,6 @@ import Sightray exposing (interpReflect)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
 import Room exposing (projectedSightline)
-import RoomItem
 
 main = 
     Browser.element
@@ -72,10 +72,17 @@ type alias Model =
     , mouseDragPos : Maybe Point
     , dragging : Bool
     , zoomScale : Float
-    , successAnimation : Maybe Shared.SuccessAnimation
+    , photoAttempt : Maybe PhotoAttempt
     }
 
+type PhotoAttempt
+    = PhotoFail FailReason
+    | PhotoSuccess Shared.SuccessAnimation
 
+type FailReason
+    = NoItem
+    | WrongItem RoomItem
+    | TooClose Length
 
 init : () -> ( Model, Cmd Msg )
 init _ =
@@ -83,9 +90,15 @@ init _ =
     , mouseDragPos = Nothing
     , dragging = False
     , zoomScale = 0.3
-    , successAnimation = Nothing --Just (SuccessAnimation 0 Nothing)
+    , photoAttempt = Nothing
     }
         |> noCmds
+
+successAnimation : Model -> Maybe Shared.SuccessAnimation
+successAnimation model = 
+    case model.photoAttempt of 
+        Just (PhotoSuccess ani) -> Just ani
+        _ -> Nothing
 
 
 -- UPDATE --
@@ -121,18 +134,18 @@ update msg model =
 
         DragStart -> 
             { model | dragging = True, mouseDragPos = Nothing }
-                |> updateStatus
+                |> updateRoomStatus
                 |> noCmds
 
         DragStop -> 
             { model | dragging = False, mouseDragPos = Nothing }
-                |> updateSuccess
-                |> updateStatus
+                |> updatePhotoAttempt
+                |> updateRoomStatus
                 |> noCmds
 
         MouseClickAt sceneOffsetPos -> 
             model 
-                |> updateSuccess
+                |> updatePhotoAttempt
                 |> noCmds
         
         AdjustZoom deltaY ->
@@ -142,33 +155,29 @@ update msg model =
                 |> noCmds
 
         StepAnimation stepDiff ->
-            { model | successAnimation = model.successAnimation 
-                |> Maybe.map (\ani -> 
-                    { ani | step = ani.step + 1, transitionPct = Just 0.3 }
-                )
-            }
+            model |> updateSuccessAnimation (\ani -> 
+                { ani | step = ani.step + 1, transitionPct = Just 0.3 }
+            )
                 |> noCmds
 
         Tick -> 
-            { model | successAnimation = model.successAnimation 
-                |> Maybe.map (\ani -> 
-                    case ani.transitionPct of 
-                        Nothing -> ani
-                        Just pct -> pct + 0.02 |> (\newPct -> 
-                            if newPct < 1.0 then 
-                                { ani | transitionPct = Just newPct }
-                            else 
-                                { ani | transitionPct = Nothing, step = ani.step }
-                            )
-                )
-            }
+            model |> updateSuccessAnimation (\ani -> 
+                case ani.transitionPct of 
+                    Nothing -> ani
+                    Just pct -> pct + 0.02 |> (\newPct -> 
+                        if newPct < 1.0 then 
+                            { ani | transitionPct = Just newPct }
+                        else 
+                            { ani | transitionPct = Nothing, step = ani.step }
+                        )
+            )
                 |> noCmds
 
         _ ->
             model |> noCmds
 
-updateSuccess : Model -> Model 
-updateSuccess model = 
+updatePhotoAttempt : Model -> Model 
+updatePhotoAttempt model = 
     let 
         ray = 
             rayNormal model
@@ -176,27 +185,42 @@ updateSuccess model =
         sightEnd = 
             ray |> .end |> Sightray.endPos 
 
-        targetHit = 
-            RoomItem.containsPoint sightEnd (targetItem model)
-                && Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
-                    (Sightray.length ray) model.room.sightDistance
+        itemHit = 
+            Room.allItems model.room
+                |> List.filter (RoomItem.containsPoint sightEnd)
+                |> List.head -- TODO handle more than one? shouldnt be possible
 
-        newAnimation = 
-            case (model.successAnimation, targetHit) of 
+        targetHit = 
+            itemHit == Just (targetItem model)
+                && closeEnough (Sightray.length ray) model.room.sightDistance
+
+        newPhotoAttempt = 
+            case (model.photoAttempt, targetHit) of 
                 (Nothing, True) -> 
-                    Just (Shared.SuccessAnimation 0 Nothing)
+                    Just <| PhotoSuccess (Shared.SuccessAnimation 0 Nothing)
+                -- (Nothing, Just False) ->
+                --     Just <| PhotoFail (WrongItem itemHit)
+                -- (Nothing, Nothing) ->
+                --     Just <| PhotoFail (NoItem)
+                --     -- TODO handle other fail types
                 _ ->
-                    model.successAnimation
+                    model.photoAttempt
     in
-        { model | successAnimation = newAnimation }
+    { model | photoAttempt = newPhotoAttempt }
+
+updateSuccessAnimation : (Shared.SuccessAnimation -> Shared.SuccessAnimation) -> Model -> Model
+updateSuccessAnimation upd model = 
+    case model.photoAttempt of 
+        Just (PhotoSuccess ani) -> { model | photoAttempt = Just (PhotoSuccess (upd ani)) }
+        _ -> model
 
 roomStatus model = 
-    case (model.successAnimation, model.dragging) of
+    case ((successAnimation model), model.dragging) of
         (Just _, _) -> Room.TakingPic
         (_, False) -> Room.Standing
         (_, True) -> Room.LookingAround
 
-updateStatus model =
+updateRoomStatus model =
     { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
 
 -- TODO just make it an actual Item in the first place
@@ -208,7 +232,7 @@ targetItem model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model = 
-    case model.successAnimation |> Maybe.map .transitionPct of
+    case (successAnimation model) |> Maybe.map .transitionPct of
         Just _ ->
             Time.every 50 (\_ -> Tick)
         _ ->
@@ -258,10 +282,30 @@ view model =
                         [ El.centerX 
                         ] 
                         <| El.html (svgContainer model) 
+                    , rayNormal model 
+                        |> Sightray.length
+                        |> (\dist -> 
+                            if closeEnough model.room.sightDistance dist 
+                                then
+                                    model.room.sightDistance 
+                                else 
+                                    dist
+                        )
+                        |> Length.inMeters
+                        |> ((*) 100)
+                        |> round
+                        |> toFloat 
+                        |> (\l -> l / 100)
+                        |> String.fromFloat
+                        |> (\dist -> "Your distance: " ++ dist ++ " meters")
+                        |> El.text
                     ]
                 ]
             )
         )
+
+closeEnough =
+    Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
 
 viewParagraph text = 
     El.paragraph 
@@ -282,7 +326,7 @@ birdBoxText =
     some close by, and others far away..."""
 
 instructionsText sightDistance = 
-    "Your challenge: In the Infinite Bird Box below, click and drag to aim Pat's camera "
+    "Your challenge: Click and drag to aim Pat's camera "
     ++ "at the reflected image of a bird that appears to be " 
     ++ String.fromFloat (Quantity.unwrap sightDistance)
     ++ " meters away."
@@ -292,9 +336,9 @@ svgContainer : Model -> Html Msg
 svgContainer model =
     Html.div 
         [ Pointer.onDown (\_ -> 
-            if Maybe.isJust model.successAnimation then NoOp else DragStart)
+            if Maybe.isJust (successAnimation model) then NoOp else DragStart)
         , Pointer.onUp (\_ -> 
-            if Maybe.isJust model.successAnimation then StepAnimation 1 else DragStop)
+            if Maybe.isJust (successAnimation model) then StepAnimation 1 else DragStop)
         , Pointer.onLeave (\_ -> DragStop)
         , Pointer.onMove (\event -> 
             if model.dragging then 
@@ -309,7 +353,7 @@ svgContainer model =
             , Attr.height (constants.containerHeight |> String.fromFloat)
             ]
             [ Svg.g [] 
-                [ model.successAnimation 
+                [ (successAnimation model) 
                     |> Maybe.map (viewDiagramSuccess model)
                     |> Maybe.withDefault (viewDiagramNormal model)
                 ]
@@ -329,10 +373,11 @@ viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
     let 
         ray = raySuccess model animation 
+
         rooms =
             reflectedRooms (projectedSightline model.room) model.room []
                 |> List.reverse
-                |> List.take (animation.step + 1) 
+                |> List.take (animation.step + 1)
 
         centroid = 
             rooms 
@@ -386,7 +431,7 @@ raySuccess model animation =
             
 viewAnimationButtons : Model -> Element Msg 
 viewAnimationButtons model = 
-    model.successAnimation
+    (successAnimation model)
         |> Maybe.map (\_ ->
             El.row 
                 [ El.centerX 

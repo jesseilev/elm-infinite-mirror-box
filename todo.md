@@ -8,6 +8,7 @@
 - multple room arrangement challenges
 - when you complete one room, it moves to the next
 - text feedback when you take a pic and fail
+- better visual feedback, mouse hovers, cursor hand, etc
 - cursor shows drag-to-rotate thingy
 - sightpath animates the dotted line towards the player
 - make styles match brilliant styleguide
@@ -20,7 +21,7 @@
 - 
 
 ## Bugs
-
+- when you click the final animation step it gets weird
 - when sightray hits a corner the bounce escapes the room
 
 ## Feature F1
