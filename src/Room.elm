@@ -107,7 +107,7 @@ playerItem : Model -> RoomItem
 playerItem model = 
     ( case model.status of 
         Standing -> RoomItem.emojis.cat
-        LookingAround -> RoomItem.emojis.camera 
+        LookingAround -> RoomItem.emojis.cameraVid2 
         TakingPic -> RoomItem.emojis.cameraFlash
     )
         |> RoomItem.init model.viewerPos
@@ -176,23 +176,30 @@ update msg model =
 view : Model -> Svg Msg 
 view model = 
     let 
-        viewRoomItem item = 
+        viewRoomItem flag item = 
             RoomItem.init item.pos item.emoji
-                |> RoomItem.view True
+                |> RoomItem.view flag
                 |> Svg.map RoomItemMsg
 
         roomSvg =
             Svg.g [] <| 
                 [ Svg.polygon2d 
                     [ Attr.fill "none"
-                    , Attr.strokeWidth "0.05"
-                    , Attr.stroke Shared.colors.blue1
+                    , Attr.strokeWidth "0.04"
+                    , Attr.stroke "black"
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-                , viewRoomItem <| playerItem model 
-                , viewRoomItem <| targetItem model
+                , playerItem model 
+                    |> viewRoomItem False
+                    |> Svg.rotateAround model.viewerPos 
+                        (if model.status == Standing then 
+                            Angle.degrees 0
+                        else 
+                         Direction2d.toAngle model.viewerDirection |> Quantity.minus (Angle.degrees 90)
+                        )
+                , viewRoomItem True <| targetItem model
                 ]
-                ++ (List.map viewRoomItem model.trees)        
+                ++ (List.map (viewRoomItem False) model.trees)        
     in
         roomSvg 
             -- |> Svg.at (Shared.pixelsPerMeter 0.3)

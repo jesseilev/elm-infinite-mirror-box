@@ -63,7 +63,7 @@ boundaryCircle item =
 
 radius : Length 
 radius = 
-    Length.meters 0.25
+    Length.meters 0.2
 
 interpReflect : InterpolatedReflection RoomItem
 interpReflect axis pct item =
@@ -78,6 +78,8 @@ emojis =
     , cat = "🐈‍⬛"
     , camera = "📷"
     , cameraFlash = "📸"
+    , cameraVid = "🎥"
+    , cameraVid2 = "📹"
     , parrot = "🦜"
     }
 
@@ -92,14 +94,16 @@ type Msg = NoOp
 view : Bool -> RoomItem -> Svg Msg
 view inFocus item = 
     let
-        fontSize = Quantity.unwrap radius 
+        fontSize = (Quantity.unwrap radius) * 0.95
     in
     Svg.g [] 
         [ Svg.circle2d
-            [ TypedSvg.Attributes.fill <| Paint Color.white
+            [ 
+                -- TypedSvg.Attributes.fill <| Paint Color.white
                 -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            , Attr.strokeWidth <| if inFocus then "0.01" else "0"
-            , Attr.fill "#f7f7f7"
+            Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
+            , Attr.stroke <| if inFocus then Shared.colors.yellow1 else "lightGrey"
+            , Attr.fill <| "white" -- if inFocus then "#e0e0e0" else "white"
             ]
             (boundaryCircle item)
         , Svg.text_ 

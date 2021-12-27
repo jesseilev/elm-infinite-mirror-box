@@ -299,8 +299,10 @@ viewWithAttrs attrs ray =
         |> polyline 
         |> (\pl -> 
             Svg.g [] 
-                [ Svg.polyline2d [ Attr.stroke "white", Attr.strokeWidth "0.1", Attr.fill "none" ] pl
-                , Svg.polyline2d attrs pl
+                [ 
+                    -- Svg.polyline2d [ Attr.stroke "white", Attr.strokeWidth "0.1", Attr.fill "none" ] pl
+                -- , 
+                Svg.polyline2d attrs pl
                 ]
         )
 

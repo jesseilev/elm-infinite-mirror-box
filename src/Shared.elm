@@ -13,6 +13,7 @@ import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
 import Quantity
+import Svg exposing (Svg)
 import Vector2d
 
 -- Coordinate systems --
@@ -144,7 +145,10 @@ type alias SuccessAnimation =
 
 
 colors = 
-    { blue1 = "#88aaee"
+    { blue1 = "#2c6fef"
+    , yellow1 = "#eea71f"
+    , red1 = "#e1503c"
+    , green1 = "#179e7e"
     , darkBackground = Color.rgb 0.6 0.6 0.6
     }
 
@@ -165,3 +169,8 @@ angleDiff pivot p1 p2 =
     in
         Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
             |> Debug.log "anglediff retval"
+
+
+svgEmpty : Svg msg 
+svgEmpty = 
+    Svg.g [] []

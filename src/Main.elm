@@ -19,6 +19,7 @@ import VirtualDom
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
+import Html.Attributes
 import Html.Events
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Pointer as Pointer
@@ -249,16 +250,15 @@ view model =
     El.layout 
         [ El.width El.fill
         , El.height El.fill 
-        -- , Background.color Shared.colors.darkBackground
+        -- , Background.color (El.rgb 0.5 0.5 0.5)
         ]
         (El.el 
-            [ El.centerX
-            , El.centerY 
-            ] 
+            [] 
             (El.column 
                 [ El.centerX 
-                , El.paddingXY 100 10
+                , El.paddingXY 200 10
                 , El.spacing 40
+                -- , El.width <| El.px 800
                 , Font.size 17
                 , Font.family 
                     [ Font.external
@@ -274,6 +274,7 @@ view model =
                 , viewParagraph birdBoxText
                 , El.column     
                     [ El.centerX 
+                    , El.width El.fill
                     , El.padding 40
                     , El.spacing 20
                     , Border.width 2
@@ -324,7 +325,7 @@ patTheCatText =
 birdBoxText = 
     """Arriving home, Pat enters her Infinite Bird Box, a small room with 4 
     adjustable mirrors for walls. The room doesn't contain much, just Garrett the Parrot 🦜 and 
-    a few potted plants 🪴. But the way the light bounces around off the mirrored walls gives 
+    a few potted plants 🪴. But the light bouncing around off the mirrored walls gives 
     Pat the illusion of standing in a vast forest surrounded by many plants and birds:
     some close by, and others far away..."""
 
@@ -348,6 +349,7 @@ svgContainer model =
                 MouseDragAt (mouseToSceneCoords model.zoomScale event.pointer.offsetPos)
             else 
                 NoOp)
+        , Html.Attributes.style "cursor" (if model.dragging then "grabbing" else "grab")
         -- , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
         -- , Mouse.onClick (\event -> if model.dragging then NoOp else MouseClickAt Point2d.origin)
         ]
@@ -367,21 +369,25 @@ viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
     let 
         ray = rayNormal model 
-        viewWedge (angle, arc) =
+        viewWedge color (angle, arc) =
             Svg.g 
                 []
-                [ Svg.arc2d 
-                    [ Attr.fill "none"
-                    , Attr.stroke "grey"
+                [ 
+                Svg.triangle2d [ Attr.fill "white" ] 
+                    (triangleForArc (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) 3))
+                , 
+                Svg.arc2d 
+                    [ Attr.fill color
+                    , Attr.stroke "black" --fill
                     , Attr.strokeWidth "0.01"
                     -- , Attr.opacity "0.33"
                     ] 
                     arc
-                -- , Svg.triangle2d [ Attr.fill "orange", Attr.opacity "0.33" ] (triangleForArc arc)
+                , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
                 , Svg.text_ 
                     [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
                     , Attr.x (-0.5 * 0.25 |> String.fromFloat)
-                    , Attr.fill "grey"
+                    , Attr.fill "black"
                     , Attr.alignmentBaseline "central"
                     ] 
                     [ angle 
@@ -401,16 +407,29 @@ viewDiagramNormal model =
                 ]
     in
     Svg.g []
-        [ 
-        angleArcs ray
-            |> List.map (\(wedge1, wedge2) -> [ viewWedge wedge1, viewWedge wedge2 ])
-            |> List.concat
-            |> Svg.g []
+        [ if model.dragging then 
+            angleArcs ray
+                |> List.indexedMap (\i (wedge1, wedge2) -> 
+                    [ viewWedge (angleColor i) wedge1, viewWedge (angleColor i) wedge2 ])
+                |> List.concat
+                |> Svg.g []
+            else 
+                Shared.svgEmpty
         , Sightray.view ray
         , Room.view model.room |> Svg.map RoomMsg
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.topLeftFrame
+
+angleColor i = 
+    [ Shared.colors.yellow1 
+    , Shared.colors.blue1 
+    , Shared.colors.red1
+    , Shared.colors.green1
+    ] 
+        |> Array.fromList 
+        |> Array.get (i |> modBy 4)
+        |> Maybe.withDefault "grey"
 
 
 angleArcRadius = 0.25
