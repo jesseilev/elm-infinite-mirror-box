@@ -50,12 +50,15 @@ import Sightray
 import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
 import Time
+import Triangle2d
 import Sightray exposing (startPos)
 import Sightray exposing (Sightray)
 import Sightray exposing (interpReflect)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
 import Room exposing (projectedSightline)
+import Arc2d
+import TypedSvg.Attributes exposing (direction)
 
 main = 
     Browser.element
@@ -362,13 +365,63 @@ svgContainer model =
 
 viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
+    let 
+        ray = rayNormal model 
+        viewWedge (angle, arc) =
+            Svg.g 
+                []
+                [ Svg.arc2d 
+                    [ Attr.fill "none"
+                    , Attr.stroke "grey"
+                    , Attr.strokeWidth "0.01"
+                    -- , Attr.opacity "0.33"
+                    ] 
+                    arc
+                -- , Svg.triangle2d [ Attr.fill "orange", Attr.opacity "0.33" ] (triangleForArc arc)
+                , Svg.text_ 
+                    [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
+                    , Attr.x (-0.5 * 0.25 |> String.fromFloat)
+                    , Attr.fill "grey"
+                    , Attr.alignmentBaseline "central"
+                    ] 
+                    [ angle 
+                        |> Quantity.abs 
+                        |> Angle.inDegrees 
+                        |> round 
+                        |> String.fromInt 
+                        |> (\s -> s ++ "º")
+                        |> Svg.text 
+                    ]
+                    |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+                    |> Svg.translateBy (Vector2d.from Point2d.origin 
+                        (Arc2d.midpoint 
+                            (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) arcLabelDistanceScale)
+                        )
+                    )
+                ]
+    in
     Svg.g []
-        [ Sightray.view (rayNormal model)
+        [ 
+        angleArcs ray
+            |> List.map (\(wedge1, wedge2) -> [ viewWedge wedge1, viewWedge wedge2 ])
+            |> List.concat
+            |> Svg.g []
+        , Sightray.view ray
         , Room.view model.room |> Svg.map RoomMsg
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.topLeftFrame
-        
+
+
+angleArcRadius = 0.25
+arcLabelDistanceScale = 1.65
+
+
+triangleForArc arc = 
+    Triangle2d.from (Arc2d.centerPoint arc)
+        (Arc2d.startPoint arc) 
+        (Arc2d.endPoint arc)
+
 viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
     let 
@@ -389,9 +442,19 @@ viewDiagramSuccess model animation =
 
         successAttrs = 
             Sightray.lineAttrs "lightGreen" "0.05"
+
+        viewWedge (angle, arc) =
+            Svg.g [ Attr.opacity "0.3", Attr.fill "red" ] 
+                [ Svg.arc2d [] arc
+                -- , Svg.triangle2d [] tri
+                ]
     in
     Svg.g [ ] 
         [ Sightray.viewWithAttrs successAttrs ray
+        , angleArcs ray
+            |> List.map (\(wedge1, wedge2) -> [ viewWedge wedge1, viewWedge wedge2 ])
+            |> List.concat
+            |> Svg.g []
         , Svg.lineSegment2d successAttrs
             (LineSegment2d.from model.room.viewerPos (Sightray.startPos ray.start))
         , rooms
@@ -402,6 +465,59 @@ viewDiagramSuccess model animation =
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
         |> Svg.at (pixelsPerMeterWithZoomScale (toFloat (animation.step + 1) ^ -0.7))
         |> Svg.relativeTo Shared.topLeftFrame
+
+
+angleArcs ray = 
+    let 
+        mkWedge bounce neighbor = 
+            let 
+                pointOnAxis modDirection = 
+                    Point2d.translateIn (Axis2d.direction bounce.axis |> modDirection) 
+                        (Length.meters angleArcRadius) 
+                        bounce.point
+            in 
+            takeMin (Point2d.distanceFrom neighbor) 
+                (pointOnAxis identity) 
+                (pointOnAxis Direction2d.reverse) 
+                |> (\poa -> 
+                    Shared.angleDiff bounce.point poa neighbor
+                        |> Maybe.withDefault (Angle.degrees 0)
+                        |> within180
+                        |> (\angle -> ( angle, Arc2d.sweptAround bounce.point angle poa ))
+                )
+                
+    in
+    Sightray.bouncesWithNeighborPoints ray 
+        |> List.map (\(prev, bounce, next) -> ( mkWedge bounce prev, mkWedge bounce next )) 
+
+within180 : Angle -> Angle 
+within180 angle = 
+    let 
+        outOfRange = 
+            (angle |> Quantity.greaterThan (Angle.degrees 180))
+                || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
+
+        fixPozi a = 
+            if a |> Quantity.greaterThan (Angle.degrees 180) then 
+                a |> Quantity.minus (Angle.degrees 360)
+            else 
+                a
+
+        fixNegi a = 
+            if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
+                a |> Quantity.plus (Angle.degrees 360)
+            else 
+                a
+    in
+        angle 
+            |> fixPozi
+            |> fixNegi
+
+takeMin : (a -> Quantity number c) -> a -> a -> a
+takeMin quantify p q = 
+    case Quantity.compare (quantify p) (quantify q) of
+        GT -> q
+        _ -> p
 
 reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
 reflectedRooms sightline room roomsAcc = 
@@ -471,3 +587,55 @@ svgToSceneCoords localFrame svg =
         |> Svg.mirrorAcross Axis2d.x 
         |> Svg.placeIn localFrame
 
+
+
+{-
+[ ( Point2d { x = 0.35, y = -0.65 }
+  , { axis = 
+        Axis2d 
+            { direction = 
+                Direction2d { x = -0.9486832980505138, y = 0.3162277660168379 }
+            , originPoint = 
+                Point2d { x = 0.9116525411117986, y = 1.4461158196294002 } 
+            }
+    , point = Point2d { x = 0.9116525411117986, y = 1.4461158196294002 }
+    , wall = 
+        LineSegment2d 
+            ( Point2d { x = 2.25, y = 1 }
+            , Point2d { x = -1.5, y = 2.25 }
+            ) 
+    }
+  , Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
+  )
+, ( Point2d { x = 0.9116525411117986, y = 1.4461158196294002 }
+  , { axis = 
+        Axis2d 
+            { direction = Direction2d { x = 0.9701425001453319, y = 0.24253562503633297 }
+            , originPoint = Point2d { x = -0.3010947202186196, y = -1.575273680054655 } 
+            }
+    , point = Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
+    , wall = 
+        LineSegment2d 
+            ( Point2d { x = -2, y = -2 }
+            , Point2d { x = 2, y = -1 }
+            ) 
+    }
+  , Point2d { x = -1.8016028715674568, y = -0.31362440832338306 }
+  )
+, ( Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
+  , { axis = 
+        Axis2d 
+            { direction = Direction2d { x = -0.1168412475673972, y = -0.9931506043228762 }
+            , originPoint = Point2d { x = -1.8016028715674568, y = -0.31362440832338306 } 
+            }
+    , point = Point2d { x = -1.8016028715674568, y = -0.31362440832338306 }
+    , wall = 
+        LineSegment2d 
+            ( Point2d { x = -1.5, y = 2.25 }
+            , Point2d { x = -2, y = -2 }
+            ) 
+    }
+  , Point2d { x = -1.2529381897372662, y = -0.038419010331397996 }
+  )
+]
+-}

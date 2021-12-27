@@ -98,8 +98,8 @@ view inFocus item =
         [ Svg.circle2d
             [ TypedSvg.Attributes.fill <| Paint Color.white
                 -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            , Attr.strokeWidth <| if inFocus then "0.03" else "0"
-            , Attr.stroke "lightGrey"
+            , Attr.strokeWidth <| if inFocus then "0.01" else "0"
+            , Attr.fill "#f7f7f7"
             ]
             (boundaryCircle item)
         , Svg.text_ 

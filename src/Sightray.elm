@@ -1,5 +1,7 @@
 module Sightray exposing (..)
 
+import Angle exposing (Angle)
+import Array exposing (Array)
 import Axis2d
 import Circle2d
 import Geometry.Svg as Svg
@@ -19,6 +21,7 @@ import Svg.Attributes as Attr
 import Quantity exposing (Quantity)
 import Html.Attributes exposing (start)
 import Point2d exposing (distanceFrom)
+import Angle
 
 type alias Sightray = 
     { start : RayStart 
@@ -229,6 +232,39 @@ length : Sightray -> Length
 length ray =
     ray |> polyline |> Polyline2d.length
 
+bouncesWithNeighborPoints : Sightray -> List (Point, MirrorBounce, Point)
+bouncesWithNeighborPoints ray = 
+    let
+        mapTheArray : Array MirrorBounce -> Array (Point, MirrorBounce, Point)
+        mapTheArray bounces = 
+            bounces 
+                |> Array.indexedMap (\i bounce ->
+                    (Array.get (i - 1) bounces 
+                        |> Maybe.map .point 
+                        |> Maybe.withDefault (startPos ray.start)
+                    , bounce
+                    , Array.get (i + 1) bounces 
+                        |> Maybe.map .point
+                        |> Maybe.withDefault (endPos ray.end)
+                    )
+                )
+    in
+    ray.bounces 
+        |> Array.fromList 
+        |> mapTheArray
+        |> Array.toList
+
+bouncesWithAngles : Sightray -> List (MirrorBounce, Angle)
+bouncesWithAngles ray = 
+    ray 
+        |> bouncesWithNeighborPoints
+        |> List.map (\(prev, bounce, next) -> 
+            Shared.angleDiff bounce.point prev next 
+                |> Maybe.withDefault (Angle.degrees 0 |> Debug.log "angle fucked up") -- TODO deal with this better?
+                |> (\a -> Angle.degrees 180 |> Quantity.minus a |> Quantity.multiplyBy 0.5)
+                |> (\a -> (bounce, a))
+        )
+
 
 interpReflect : InterpolatedReflection Sightray
 interpReflect axis pct ray = 
@@ -256,10 +292,17 @@ interpReflectBounce axis pct bounce =
 
 view : Sightray -> Svg msg
 view = 
-    viewWithAttrs (lineAttrs "grey" "0.03")
+    viewWithAttrs (lineAttrs "black" "0.01")
 
 viewWithAttrs attrs ray = 
-    ray |> polyline |> Svg.polyline2d attrs
+    ray 
+        |> polyline 
+        |> (\pl -> 
+            Svg.g [] 
+                [ Svg.polyline2d [ Attr.stroke "white", Attr.strokeWidth "0.1", Attr.fill "none" ] pl
+                , Svg.polyline2d attrs pl
+                ]
+        )
 
 lineAttrs : String -> String -> List (Svg.Attribute msg)
 lineAttrs color width = 

@@ -123,15 +123,6 @@ projectedSightline model =
                 (Direction2d.toAngle model.viewerDirection))))
 
 
-angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
-angleDiff pivot p1 p2 = 
-    let
-        getAngle p = 
-            Direction2d.from pivot p 
-                |> Maybe.map Direction2d.toAngle
-    in
-        Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
-
 interpReflect : InterpolatedReflection Model 
 interpReflect axis pct model =
     { model 
@@ -169,7 +160,7 @@ update msg model =
         MouseDragMsg prevMousePos mousePos -> 
             Shared.viewerFrame model.viewerPos viewerAngle
                 |> Frame2d.originPoint
-                |> (\origin -> angleDiff origin prevMousePos mousePos)
+                |> (\origin -> Shared.angleDiff origin prevMousePos mousePos)
                 |> Maybe.map (Quantity.plus viewerAngle)
                 |> Maybe.withDefault viewerAngle
                 |> (\a -> { model | viewerDirection = Direction2d.fromAngle a })

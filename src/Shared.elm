@@ -153,3 +153,15 @@ debugLogF : (a -> b) -> String -> a -> a
 debugLogF f str a =
     let _ = Debug.log str (f a) in 
     a
+
+
+angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
+angleDiff pivot p1 p2 = 
+    let
+        getAngle p = 
+            Direction2d.from pivot p 
+                |> Maybe.map Direction2d.toAngle
+                |> debugLogF (\m -> (m, pivot, p)) "two points"
+    in
+        Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
+            |> Debug.log "anglediff retval"
