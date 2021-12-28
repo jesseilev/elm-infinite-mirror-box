@@ -11,6 +11,7 @@ module Room exposing
     , view
     , projectedSightline
     , interpReflect
+    , interpolateFrom
     )
 
 import Array
@@ -131,6 +132,16 @@ interpReflect axis pct model =
         , viewerDirection = Shared.interpReflectDirection axis pct model.viewerDirection
         , targetPos = Shared.interpReflectPoint axis pct model.targetPos
         , trees = List.map (RoomItem.interpReflect axis pct) model.trees
+    }
+
+interpolateFrom : Model -> Model -> Float -> Model
+interpolateFrom r1 r2 pct = 
+    { r1 
+        | wallShape = Shared.interpolatePolygonFrom r1.wallShape r2.wallShape pct
+        , viewerPos = Shared.interpolatePointFrom r1.viewerPos r2.viewerPos pct
+        , viewerDirection = Shared.interpolateDirectionFrom r1.viewerDirection r2.viewerDirection pct
+        , targetPos = Shared.interpolatePointFrom r1.targetPos r2.targetPos pct
+        , trees = Shared.interpolateLists RoomItem.interpolateFrom r1.trees r2.trees pct
     }
 
 allItems : Model -> List RoomItem

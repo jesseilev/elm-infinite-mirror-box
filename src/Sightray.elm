@@ -198,12 +198,12 @@ type Intersection
     | IntersectItem Point RoomItem
 
 tail : Sightray -> Maybe (MirrorBounce, Sightray)
-tail raypath =
-    case raypath.bounces of 
+tail ray =
+    case ray.bounces of 
         [] -> Nothing 
         b :: bs ->
-            { start = MirrorProjection b, bounces = bs , end = raypath.end }
-                |> (\ray -> Just (b, ray))
+            { start = MirrorProjection b, bounces = bs , end = ray.end }
+                |> (\r -> Just (b, r))
 
 -- all the steps in the unfolding animation 
 -- from totally real at the beginning to totally projected at the end
@@ -292,7 +292,7 @@ interpReflectBounce axis pct bounce =
 
 view : Sightray -> Svg msg
 view = 
-    viewWithAttrs (lineAttrs "black" "0.01")
+    viewWithAttrs lineAttrsDefault
 
 viewWithAttrs attrs ray = 
     ray 
@@ -305,6 +305,8 @@ viewWithAttrs attrs ray =
                 Svg.polyline2d attrs pl
                 ]
         )
+
+lineAttrsDefault = lineAttrs "black" "0.01"
 
 lineAttrs : String -> String -> List (Svg.Attribute msg)
 lineAttrs color width = 

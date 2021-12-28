@@ -8,6 +8,7 @@ module RoomItem exposing
     , Msg
     , view
     , interpReflect
+    , interpolateFrom
     )
 
 import Axis2d
@@ -69,6 +70,10 @@ interpReflect : InterpolatedReflection RoomItem
 interpReflect axis pct item =
     item |> updatePos (interpReflectPoint axis pct)
 
+interpolateFrom : Shared.Interpolation RoomItem 
+interpolateFrom item1 item2 pct = 
+    item1 |> updatePos (\p1 -> Shared.interpolatePointFrom p1 item2.pos pct)
+
 -- TODO make typesafe
 emojis = 
     { roundTree = "🌳"
@@ -102,8 +107,9 @@ view inFocus item =
                 -- TypedSvg.Attributes.fill <| Paint Color.white
                 -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
             Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
-            , Attr.stroke <| if inFocus then Shared.colors.yellow1 else "lightGrey"
-            , Attr.fill <| "white" -- if inFocus then "#e0e0e0" else "white"
+            , Attr.stroke <| if inFocus then Shared.colors.yellow1 else "#f0f0f0"
+            , Attr.fill <| "white" --if inFocus then Shared.colors.yellow1 else "white"
+            -- , Attr.opacity <| if inFocus then "0.5" else "1"
             ]
             (boundaryCircle item)
         , Svg.text_ 

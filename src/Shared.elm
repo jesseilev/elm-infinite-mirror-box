@@ -8,6 +8,7 @@ import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
 import Length exposing (Meters)
 import LineSegment2d exposing (LineSegment2d)
+import List.Extra as List
 import Pixels exposing (Pixels, pixels)
 import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
@@ -92,6 +93,40 @@ sign n =
 
 
 
+type alias Interpolation a = a -> a -> Float -> a
+
+interpolateLists : (Interpolation a) -> Interpolation (List a)
+interpolateLists interpA l1 l2 pct =
+    List.zip l1 l2 
+        |> List.map (\(a1, a2) -> interpA a1 a2 pct)
+
+interpolatePointFrom : Interpolation Point
+interpolatePointFrom p1 p2 pct = 
+    LineSegment2d.from p1 p2
+        |> (\line -> LineSegment2d.interpolate line pct)
+
+interpolateLineFrom : Interpolation LineSegment 
+interpolateLineFrom l1 l2 pct = 
+    LineSegment2d.from 
+        (interpolatePointFrom (LineSegment2d.startPoint l1) (LineSegment2d.startPoint l2) pct)
+        (interpolatePointFrom (LineSegment2d.endPoint l1) (LineSegment2d.endPoint l2) pct)
+
+interpolatePolygonFrom : Interpolation Polygon
+interpolatePolygonFrom p1 p2 pct =
+    interpolateLists interpolatePointFrom (Polygon2d.vertices p1) (Polygon2d.vertices p2) pct
+        |> Polygon2d.singleLoop
+
+interpolateDirectionFrom : Interpolation Direction
+interpolateDirectionFrom d1 d2 pct =
+    interpolateAngleFrom (Direction2d.toAngle d1) (Direction2d.toAngle d2) pct
+        |> Direction2d.fromAngle
+
+interpolateAngleFrom : Interpolation Angle
+interpolateAngleFrom a1 a2 pct = 
+    Quantity.difference a1 a2
+        |> Quantity.multiplyBy pct
+        |> Quantity.plus a1
+
 type alias InterpolatedReflection a = Axis -> Float -> a -> a
 
 interpReflectPoint : InterpolatedReflection Point 
@@ -127,7 +162,7 @@ interpReflectDirection axis pct dir =
         interpAngle : Angle -> Angle -> Float -> Angle
         interpAngle a1 a2 pct_ = 
             Quantity.difference a1 a2
-                |> Quantity.multiplyBy pct
+                |> Quantity.multiplyBy pct_
                 |> Quantity.plus a1
 
         fullReflectionAngle = 

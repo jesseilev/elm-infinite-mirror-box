@@ -15,7 +15,7 @@ import Element.Events
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
-import VirtualDom
+import Float.Extra as Float
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
@@ -60,6 +60,7 @@ import TypedSvg.Types exposing (YesNo(..))
 import Room exposing (projectedSightline)
 import Arc2d
 import TypedSvg.Attributes exposing (direction)
+import RayPath exposing (nextBounce)
 
 main = 
     Browser.element
@@ -160,7 +161,7 @@ update msg model =
 
         StepAnimation stepDiff ->
             model |> updateSuccessAnimation (\ani -> 
-                { ani | step = ani.step + 1, transitionPct = Just 0.3 }
+                { ani | transitionPct = Just 0.0 }
             )
                 |> noCmds
 
@@ -168,11 +169,11 @@ update msg model =
             model |> updateSuccessAnimation (\ani -> 
                 case ani.transitionPct of 
                     Nothing -> ani
-                    Just pct -> pct + 0.02 |> (\newPct -> 
+                    Just pct -> pct + 0.05 |> (\newPct -> 
                         if newPct < 1.0 then 
                             { ani | transitionPct = Just newPct }
                         else 
-                            { ani | transitionPct = Nothing, step = ani.step }
+                            { ani | transitionPct = Nothing, step = ani.step + 1 }
                         )
             )
                 |> noCmds
@@ -236,11 +237,10 @@ targetItem model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model = 
-    case (successAnimation model) |> Maybe.map .transitionPct of
-        Just _ ->
-            Time.every 50 (\_ -> Tick)
-        _ ->
-            Sub.none
+    successAnimation model
+        |> Maybe.andThen .transitionPct
+        |> Maybe.map (\_ -> Time.every 50 (\_ -> Tick))
+        |> Maybe.withDefault Sub.none
 
 
 -- VIEW --
@@ -302,6 +302,9 @@ view model =
                         |> (\l -> l / 100)
                         |> String.fromFloat
                         |> (\dist -> "Your distance: " ++ dist ++ " meters")
+                        |> El.text
+                    , successAnimation model 
+                        |> Debug.toString
                         |> El.text
                     ]
                 ]
@@ -369,42 +372,6 @@ viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
     let 
         ray = rayNormal model 
-        viewWedge color (angle, arc) =
-            Svg.g 
-                []
-                [ 
-                Svg.triangle2d [ Attr.fill "white" ] 
-                    (triangleForArc (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) 3))
-                , 
-                Svg.arc2d 
-                    [ Attr.fill color
-                    , Attr.stroke "black" --fill
-                    , Attr.strokeWidth "0.01"
-                    -- , Attr.opacity "0.33"
-                    ] 
-                    arc
-                , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
-                , Svg.text_ 
-                    [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
-                    , Attr.x (-0.5 * 0.25 |> String.fromFloat)
-                    , Attr.fill "black"
-                    , Attr.alignmentBaseline "central"
-                    ] 
-                    [ angle 
-                        |> Quantity.abs 
-                        |> Angle.inDegrees 
-                        |> round 
-                        |> String.fromInt 
-                        |> (\s -> s ++ "º")
-                        |> Svg.text 
-                    ]
-                    |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
-                    |> Svg.translateBy (Vector2d.from Point2d.origin 
-                        (Arc2d.midpoint 
-                            (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) arcLabelDistanceScale)
-                        )
-                    )
-                ]
     in
     Svg.g []
         [ if model.dragging then 
@@ -420,6 +387,45 @@ viewDiagramNormal model =
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.topLeftFrame
+
+
+viewWedge color (angle, arc) =
+    Svg.g 
+        []
+        [ 
+        -- Svg.triangle2d [ Attr.fill "white" ] 
+        --     (triangleForArc (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) 3))
+        -- ,
+        Svg.arc2d 
+            [ Attr.fill color
+            , Attr.stroke "black" --fill
+            , Attr.strokeWidth "0.01"
+            -- , Attr.opacity "0.33"
+            ] 
+            arc
+        , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
+        , Svg.text_ 
+            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
+            , Attr.x (-0.5 * 0.25 |> String.fromFloat)
+            , Attr.fill "black"
+            , Attr.opacity "0"
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ angle 
+                |> Quantity.abs 
+                |> Angle.inDegrees 
+                |> round 
+                |> String.fromInt 
+                |> (\s -> s ++ "º")
+                |> Svg.text 
+            ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin 
+                (Arc2d.midpoint 
+                    (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) arcLabelDistanceScale)
+                )
+            )
+        ]
 
 angleColor i = 
     [ Shared.colors.yellow1 
@@ -446,13 +452,27 @@ viewDiagramSuccess model animation =
     let 
         ray = raySuccess model animation 
 
-        rooms =
+        (rooms, lastRoomM, nextRoomM) =
             reflectedRooms (projectedSightline model.room) model.room []
                 |> List.reverse
-                |> List.take (animation.step + 1)
+                |> List.take (animation.step + 2)
+                |> debugLogF List.length "ref rooms length"
+                |> List.unconsLast
+                |> Maybe.map (\(next, currents) -> 
+                    (currents, List.last currents, Just next)
+                )
+                |> Maybe.withDefault ([], Nothing, Nothing) -- TODO bad
+
+        transitionRoomM = 
+            Maybe.map3 Room.interpolateFrom
+                lastRoomM
+                nextRoomM
+                animation.transitionPct
 
         centroid = 
-            rooms 
+            transitionRoomM
+                |> Maybe.map (\tr -> tr :: rooms)
+                |> Maybe.withDefault rooms
                 |> List.map (.wallShape >> Polygon2d.vertices)
                 |> List.concat
                 |> Polygon2d.convexHull
@@ -462,27 +482,45 @@ viewDiagramSuccess model animation =
         successAttrs = 
             Sightray.lineAttrs "lightGreen" "0.05"
 
-        viewWedge (angle, arc) =
-            Svg.g [ Attr.opacity "0.3", Attr.fill "red" ] 
-                [ Svg.arc2d [] arc
-                -- , Svg.triangle2d [] tri
+        viewSuccessRay sr = 
+            Svg.g []
+                [ Sightray.view sr
+                -- , angleArcs sr 
+                --     |> List.map (\(wedge1, wedge2) -> [ viewWedge "grey" wedge1, viewWedge "grey" wedge2 ])
+                --     |> List.concat
+                --     |> Svg.g []
+                , Svg.lineSegment2d Sightray.lineAttrsDefault 
+                    (LineSegment2d.from model.room.viewerPos (Sightray.startPos sr.start))
                 ]
+
+        transitionRay =
+            Sightray.tail ray 
+                |> Maybe.map (\(nextBounce, tail) -> 
+                    Sightray.interpReflect nextBounce.axis 
+                        (animation.transitionPct |> Maybe.withDefault 0) 
+                        tail
+                )
+
+        zoomScaleForStep s = 
+            toFloat (s + 1) ^ -0.7
+
+        currentZoomScale = 
+            Float.interpolateFrom (zoomScaleForStep animation.step) 
+                (zoomScaleForStep (animation.step + 1))
+                (animation.transitionPct |> Maybe.withDefault 0)
     in
     Svg.g [ ] 
-        [ Sightray.viewWithAttrs successAttrs ray
-        , angleArcs ray
-            |> List.map (\(wedge1, wedge2) -> [ viewWedge wedge1, viewWedge wedge2 ])
-            |> List.concat
-            |> Svg.g []
-        , Svg.lineSegment2d successAttrs
-            (LineSegment2d.from model.room.viewerPos (Sightray.startPos ray.start))
+        [ transitionRay |> Maybe.map viewSuccessRay |> Maybe.withDefault (viewSuccessRay ray)
         , rooms
             |> List.map (Room.view >> Svg.map RoomMsg)
             |> Svg.g [ Attr.opacity "0.5" ]
+        , transitionRoomM 
+            |> Maybe.map (Room.view >> Svg.map RoomMsg)
+            |> Maybe.withDefault Shared.svgEmpty
         , Room.view model.room |> Svg.map RoomMsg
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
-        |> Svg.at (pixelsPerMeterWithZoomScale (toFloat (animation.step + 1) ^ -0.7))
+        |> Svg.at (pixelsPerMeterWithZoomScale currentZoomScale)
         |> Svg.relativeTo Shared.topLeftFrame
 
 
@@ -548,6 +586,41 @@ reflectedRooms sightline room roomsAcc =
                 (room :: roomsAcc)
         _ -> 
             room :: roomsAcc
+
+
+refRooms : LineSegment -> Room.Model -> List (Sightray.MirrorBounce, Room.Model)
+refRooms sightline room = 
+    let
+        nextRoom : 
+            (LineSegment, Room.Model) 
+            -> Maybe ((Sightray.MirrorBounce, Room.Model), (LineSegment, Room.Model))
+        nextRoom (sl, r) = 
+            case Sightray.nextIntersection r sl of 
+                Just (Sightray.IntersectMirror bounce) ->
+                    let nextR = r |> Room.interpReflect bounce.axis 1 in
+                    Just 
+                        ( (bounce, nextR)
+                        , ( LineSegment2d.from bounce.point (LineSegment2d.endPoint sl)
+                          , nextR
+                          )
+                        )
+                _ ->
+                    Nothing
+    in
+    List.unfoldr nextRoom (sightline, room)
+
+
+
+
+type Chain item rel
+    = Nil 
+    | Cons item (Maybe (Chainlink rel item))
+
+type Chainlink rel item 
+    = Chainlink rel (Chain item rel)
+
+type alias Hallway = Chain Room.Model Sightray.MirrorBounce
+
 
 rayNormal : Model -> Sightray
 rayNormal model =
