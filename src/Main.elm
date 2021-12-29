@@ -482,22 +482,33 @@ triangleForArc arc =
 viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
     let 
-        ray = raySuccess model animation 
+        (currentRay, nextRayM) = 
+            rayNormal model |> (\ray ->
+                ray 
+                    |> Sightray.uncurledSeries
+                    |> Array.fromList
+                    |> (\rs -> 
+                        ( Array.get animation.step rs |> Maybe.withDefault ray
+                        , Array.get (animation.step + 1) rs
+                        )
+                    )
+            )
 
-        (rooms, lastRoomM, nextRoomM) =
-            reflectedRooms (projectedSightline model.room) model.room []
-                |> List.reverse
-                |> List.take (animation.step + 2)
-                |> debugLogF List.length "ref rooms length"
-                |> List.unconsLast
-                |> Maybe.map (\(next, currents) -> 
-                    (currents, List.last currents, Just next)
-                )
-                |> Maybe.withDefault ([], Nothing, Nothing) -- TODO bad
+        rooms = 
+            currentRay |> Sightray.hallway model.room
+
+        farthestRoom = 
+            rooms |> List.last |> Maybe.withDefault model.room
+
+        nextRoomM = 
+            currentRay
+                |> Sightray.uncurl 
+                |> Maybe.map (Sightray.hallway model.room)
+                |> Maybe.andThen List.last
+
 
         transitionRoomM = 
-            Maybe.map3 Room.interpolateFrom
-                lastRoomM
+            Maybe.map2 (Room.interpolateFrom farthestRoom)
                 nextRoomM
                 animation.transitionPct
 
@@ -509,30 +520,28 @@ viewDiagramSuccess model animation =
                 |> List.concat
                 |> Polygon2d.convexHull
                 |> Polygon2d.centroid
-                |> Maybe.withDefault (Sightray.startPos ray.start)
-
-        successAttrs = 
-            Sightray.lineAttrs "lightGreen" "0.05"
+                |> Maybe.withDefault (Sightray.startPos currentRay.start)
 
         viewSuccessRay sr = 
             Svg.g []
                 [ Sightray.view sr
-                -- , angleArcs sr 
-                --     |> List.map (\(wedge1, wedge2) -> [ viewWedge "grey" wedge1, viewWedge "grey" wedge2 ])
-                --     |> List.concat
-                --     |> Svg.g []
                 , Svg.lineSegment2d 
                     (Sightray.lineAttrsDefault ++ [ Attr.stroke Shared.colors.yellow1, Attr.strokeWidth "0.04" ])
                     (LineSegment2d.from model.room.viewerPos (Sightray.startPos sr.start))
                 ]
 
-        transitionRay =
-            Sightray.tail ray 
-                |> Maybe.map (\(nextBounce, tail) -> 
-                    Sightray.interpReflect nextBounce.axis 
-                        (animation.transitionPct |> Maybe.withDefault 0) 
-                        tail
-                )
+        transitionRayM = 
+            Maybe.map2 (\nextRay pct -> Sightray.interpolateFrom currentRay nextRay pct)
+                nextRayM
+                animation.transitionPct
+
+        -- transitionRay =
+        --     Sightray.tail currentRay 
+        --         |> Maybe.map (\(nextBounce, tail) -> 
+        --             Sightray.interpReflect nextBounce.axis 
+        --                 (animation.transitionPct |> Maybe.withDefault 0) 
+        --                 tail
+        --         )
 
         zoomScaleForStep s = 
             toFloat (s + 1) ^ -0.7
@@ -543,7 +552,7 @@ viewDiagramSuccess model animation =
                 (animation.transitionPct |> Maybe.withDefault 0)
     in
     Svg.g [ ] 
-        [ transitionRay |> Maybe.map viewSuccessRay |> Maybe.withDefault (viewSuccessRay ray)
+        [ transitionRayM |> Maybe.withDefault currentRay |> viewSuccessRay 
         , rooms
             |> List.map (Room.view >> Svg.map RoomMsg)
             |> Svg.g [ Attr.opacity "0.5" ]

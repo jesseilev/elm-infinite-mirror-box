@@ -1,4 +1,5 @@
 module ScrapHeap exposing ()
+import Sightray
 
 
 
@@ -361,3 +362,83 @@ reflectedRoom bounces room =
                 |> Room.interpReflect b.axis 1
                 |> reflectedRoom bs
                 
+
+
+
+type alias Ray = 
+    { start : Point 
+    , unfoldedBounces : List Sightray.MirrorBounce
+    , foldedBounces : List Sightray.MirrorBounce
+    , end : Sightray.RayEnd
+    }
+
+
+{- 
+I want to calculate the reflected rooms and the sightray at any step in the (un)raveling process
+inputs:
+    - roomshape
+    - player pos
+    - player direction
+    - sight distance
+    - room item positions
+    - unravelStep
+
+I want the angle of a given bounce
+I want the corresponding (un)raveled twin of a given bounce
+i want the previous point before a given boucne
+i want the next point after a given bounce
+
+
+At the very end i want these features:
+I want to render the success animation
+To render the sucess animation I need to compute the reflected rooms and the sightray
+
+
+maybe i want to store the sightray as a tree structure
+where only one path through the tree is visible at a particular time
+
+i think a good foundational thing to compute would be:
+a function from current unravel step to Sightray
+or a list of Sightray, one for each step
+but dont i already have this?
+Sightray.unravel gives a list
+but it shortens the list instead of just updating the mirrorintersection types
+so redefine sightray to includ ethe projection points
+
+-}
+
+hallway : Sightray -> Room -> List Room
+hallway ray room = 
+    ray.bounces 
+        |> List.map (\bounce -> 
+            Room.mirrorAcross bounce.axis
+        )
+
+
+
+type Intersection 
+    = IntersectMirror MirrorIntersection
+    | IntersectItem ItemIntersection
+
+type MirrorIntersection
+    = MIReflect Sightray.MirrorBounce
+    | MIProject Sightray.MirrorBounce
+
+type alias ItemIntersection = 
+    { item : RoomItem 
+    , endpoint : Point 
+    }
+
+type RayEnd_ 
+    = RETooFar Point 
+    | REItem ItemIntersection
+
+
+type MirrorHit 
+    = Projection RayVertex
+    | Bounce RayVertex
+
+type RayVertex 
+    = MH MirrorHit
+    | RE RayEnd
+

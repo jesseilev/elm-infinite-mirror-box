@@ -127,6 +127,13 @@ interpolateAngleFrom a1 a2 pct =
         |> Quantity.multiplyBy pct
         |> Quantity.plus a1
 
+
+interpolateAxisFrom : Interpolation Axis 
+interpolateAxisFrom a1 a2 pct = 
+    Axis2d.through 
+        (interpolatePointFrom (Axis2d.originPoint a1) (Axis2d.originPoint a2) pct)
+        (interpolateDirectionFrom (Axis2d.direction a1) (Axis2d.direction a2) pct)
+
 type alias InterpolatedReflection a = Axis -> Float -> a -> a
 
 interpReflectPoint : InterpolatedReflection Point 
@@ -188,8 +195,8 @@ colors =
     }
 
 
-debugLogF : (a -> b) -> String -> a -> a
-debugLogF f str a =
+debugLogF : String -> (a -> b) -> a -> a
+debugLogF str f a =
     let _ = Debug.log str (f a) in 
     a
 
@@ -200,10 +207,10 @@ angleDiff pivot p1 p2 =
         getAngle p = 
             Direction2d.from pivot p 
                 |> Maybe.map Direction2d.toAngle
-                |> debugLogF (\m -> (m, pivot, p)) "two points"
+                -- |> debugLogF "two points" (\m -> (m, pivot, p))
     in
         Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
-            |> Debug.log "anglediff retval"
+            -- |> Debug.log "anglediff retval"
 
 
 svgEmpty : Svg msg 

@@ -4,6 +4,7 @@ import Angle exposing (Angle)
 import Array exposing (Array)
 import Axis2d
 import Circle2d
+import Direction2d
 import Geometry.Svg as Svg
 import Length exposing (Length)
 import LineSegment2d exposing (LineSegment2d)
@@ -226,6 +227,52 @@ unravel ray =
 -- tails ray == [ ray, tail ray, tail tail ray, ... ]
 -- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
 
+uncurl : Sightray -> Maybe Sightray 
+uncurl ray = 
+    projectionsAndReflections ray
+        |> (\(projs, refs) -> 
+            List.head refs 
+                |> Maybe.map .axis
+                |> Maybe.map (\axis -> 
+                    ( List.map (bounceMirrorAcross axis) refs
+                    , updateEndPos (Point2d.mirrorAcross axis) ray.end
+                    )
+                )
+                |> Maybe.map (\(newRefs, newEnd) -> 
+                    { ray | bounces = projs ++ newRefs, end = newEnd }
+                )
+        )
+
+uncurledSeries : Sightray -> List Sightray -- TODO nonempty list?
+uncurledSeries = 
+    List.iterate uncurl
+
+hallway : Room.Model -> Sightray -> List Room.Model
+hallway room ray = 
+    let
+        reflectRoom : Room.Model -> List MirrorBounce -> Room.Model
+        reflectRoom r projs = 
+            List.foldl (\proj accRoom -> accRoom |> Room.mirrorAcross proj.axis) r projs
+    in
+    projections ray 
+        |> List.inits 
+        |> List.map (reflectRoom room)
+
+projectionsAndReflections : Sightray -> (List MirrorBounce, List MirrorBounce)
+projectionsAndReflections ray = 
+    let dropNeighborInfo = List.map (\(_, bounce, _) -> bounce) in
+    bouncesWithNeighborPoints ray
+        |> List.span (\(prev, bounce, next) -> 
+            Maybe.map2 (Direction2d.equalWithin (Angle.degrees 0.001))
+                (Direction2d.from prev bounce.point)
+                (Direction2d.from bounce.point next)
+                |> Maybe.withDefault False
+        )
+        |> Tuple.mapBoth dropNeighborInfo dropNeighborInfo
+
+projections = 
+    projectionsAndReflections >> Tuple.first
+
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
     startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
@@ -272,6 +319,23 @@ bouncesWithAngles ray =
         )
 
 
+
+interpolateFrom : Sightray -> Sightray -> Float -> Sightray
+interpolateFrom ray1 ray2 pct =
+    { start = ray1.start |> updateStartPos (\sp1 -> 
+        Shared.interpolatePointFrom sp1 (startPos ray2.start) pct)
+    , bounces = Shared.interpolateLists interpolateBounceFrom ray1.bounces ray2.bounces pct
+    , end = ray1.end |> updateEndPos (\ep1 ->
+        Shared.interpolatePointFrom ep1 (endPos ray2.end) pct)
+    }
+
+interpolateBounceFrom : MirrorBounce -> MirrorBounce -> Float -> MirrorBounce
+interpolateBounceFrom bounce1 bounce2 pct = 
+    { wall = Shared.interpolateLineFrom bounce1.wall bounce2.wall pct
+    , axis = Shared.interpolateAxisFrom bounce1.axis bounce2.axis pct
+    , point = Shared.interpolatePointFrom bounce1.point bounce2.point pct 
+    }
+
 interpReflect : InterpolatedReflection Sightray
 interpReflect axis pct ray = 
     { ray 
@@ -293,6 +357,9 @@ interpReflectBounce axis pct bounce =
     , point = interpReflectPoint axis pct bounce.point 
     }
 
+bounceMirrorAcross : Axis -> MirrorBounce -> MirrorBounce
+bounceMirrorAcross axis =
+    interpReflectBounce axis 1
 
 -- VIEW 
 

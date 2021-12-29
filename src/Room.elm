@@ -11,6 +11,7 @@ module Room exposing
     , view
     , projectedSightline
     , interpReflect
+    , mirrorAcross
     , interpolateFrom
     )
 
@@ -133,6 +134,10 @@ interpReflect axis pct model =
         , targetPos = Shared.interpReflectPoint axis pct model.targetPos
         , trees = List.map (RoomItem.interpReflect axis pct) model.trees
     }
+
+mirrorAcross : Axis -> Model -> Model 
+mirrorAcross axis = 
+    interpReflect axis 1
 
 interpolateFrom : Model -> Model -> Float -> Model
 interpolateFrom r1 r2 pct = 
