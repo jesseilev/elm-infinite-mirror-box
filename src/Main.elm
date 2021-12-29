@@ -186,7 +186,7 @@ updatePhotoAttempt model =
             rayNormal model
 
         sightEnd = 
-            ray |> .end |> Sightray.endPos 
+            ray |> Sightray.endPos 
 
         itemHit = 
             Room.allItems model.room
@@ -395,7 +395,7 @@ rayEndpointLabel ray =
         itemM = 
             Sightray.endItem ray
         center = 
-            itemM |> Maybe.map .pos |> Maybe.withDefault (Sightray.endPos ray.end)
+            itemM |> Maybe.map .pos |> Maybe.withDefault (Sightray.endPos ray)
             
     in
     Svg.g [] 

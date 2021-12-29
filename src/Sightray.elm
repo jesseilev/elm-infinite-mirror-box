@@ -101,16 +101,20 @@ mirrorAcross axis ray =
 
 updateEndPos : (Point -> Point) -> RayEnd -> RayEnd
 updateEndPos upd end =
-    let newPos = upd (endPos end) in
+    let newPos = upd (getEndPos end) in
     case end of 
         TooFar _ -> TooFar newPos
         EndAtItem _ item -> EndAtItem newPos item
 
 -- Properties --
 
-endPos : RayEnd -> Point 
-endPos re =
-    case re of 
+endPos : Sightray -> Point 
+endPos = 
+    .end >> getEndPos
+
+getEndPos : RayEnd -> Point 
+getEndPos end =
+    case end of 
         TooFar p -> p
         EndAtItem p _ -> p
 
@@ -157,7 +161,7 @@ nextIntersection room projectedSightLine =
             nextMirrorBounceM 
                 |> Maybe.map (.point >> LineSegment2d.from startPoint)
                 |> Maybe.withDefault projectedSightLine
-                |> segmentSamplePoints
+                |> Shared.segmentSamplePoints
                 |> List.lift2 checkItemIntersection (Room.allItems room) 
                 |> Maybe.values
                 |> List.sortBy (\(_, _, distance) -> Quantity.unwrap distance)
@@ -169,14 +173,6 @@ nextIntersection room projectedSightLine =
         case itemHitM of 
             Just (item, point, _) -> Just (IntersectItem point item)
             Nothing -> Maybe.map IntersectMirror nextMirrorBounceM
-
-segmentSamplePoints : LineSegment -> List Point
-segmentSamplePoints line = 
-    let sampleCount = 25 in
-    List.range 0 sampleCount 
-        |> List.map (\i -> 
-            LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
-        )
 
 type Intersection 
     = IntersectMirror MirrorBounce
@@ -256,7 +252,7 @@ reflections =
 
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
-    ray.startPos :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
+    ray.startPos :: (List.map .point ray.bounces) ++ [ getEndPos ray.end ]
 
 polyline : Sightray -> Polyline
 polyline ray = 
@@ -279,7 +275,7 @@ bouncesWithNeighborPoints ray =
                     , bounce
                     , Array.get (i + 1) bounces 
                         |> Maybe.map .point
-                        |> Maybe.withDefault (endPos ray.end)
+                        |> Maybe.withDefault (getEndPos ray.end)
                     )
                 )
     in
@@ -306,7 +302,7 @@ interpolateFrom ray1 ray2 pct =
     { startPos = Shared.interpolatePointFrom ray1.startPos ray2.startPos pct
     , bounces = Shared.interpolateLists interpolateBounceFrom ray1.bounces ray2.bounces pct
     , end = ray1.end |> updateEndPos (\ep1 ->
-        Shared.interpolatePointFrom ep1 (endPos ray2.end) pct)
+        Shared.interpolatePointFrom ep1 (getEndPos ray2.end) pct)
     }
 
 interpolateBounceFrom : MirrorBounce -> MirrorBounce -> Float -> MirrorBounce
@@ -375,7 +371,7 @@ viewSamplePoints ray =
     ray 
         |> polyline
         |> Polyline2d.segments
-        |> List.map segmentSamplePoints
+        |> List.map Shared.segmentSamplePoints
         |> List.concat
         |> List.map (\p -> Svg.circle2d [ Attr.fill "red" ] 
             (Circle2d.atPoint p (Length.meters 0.02)))

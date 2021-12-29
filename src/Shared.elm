@@ -216,3 +216,11 @@ angleDiff pivot p1 p2 =
 svgEmpty : Svg msg 
 svgEmpty = 
     Svg.g [] []
+
+segmentSamplePoints : LineSegment -> List Point
+segmentSamplePoints line = 
+    let sampleCount = 25 in
+    List.range 0 sampleCount 
+        |> List.map (\i -> 
+            LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
+        )

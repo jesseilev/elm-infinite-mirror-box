@@ -18,14 +18,20 @@
 - use requestanimationframe for animations
 
 ## Internal
-- RayStart unnecessary
 - rename MirrorBounce MirrorIntersection?
 - Sightray.fromRoomAndProjectedPath is kind of hacky because recursive calls return unfinished sightrays
-- Sightray.updateEndPos take a RayEnd but should maybe just take an entire Sightray
 - move Sightray.segmentSamplePoints to Shared
 - include angle info in MirrorBounce?
 - include neighbor points in MirrorBounce?
 - Sightray view attrs use default and merge with attrs passed in
+- Room should not have state / update
+- Room model should not include viewerDirection, status, sightDistance
+- Room model should have playerItem instead of playerPos, targetItem instead of targetPos
+- Room.projectedSightline can live in parent module
+- Main.updatePhotoAttempt is checking itemHit itself, rather than looking at RayEnd
+- angle arc view stuff in Main should move to Sightray
+- ray endpoint label in Main should move to Sightray
+- make getters instead of using .accessors eg ray.startPos
 
 ## Bugs
 - mouse drag position is off kilter wrt player position
