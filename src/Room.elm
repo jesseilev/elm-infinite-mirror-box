@@ -55,14 +55,6 @@ import Direction2d exposing (Direction2d)
 import Polyline2d exposing (Polyline2d)
 import RoomItem exposing (interpReflect)
 
--- type alias Hallway =
---     { rooms : NonemptyList RoomWithRay }
-
--- type alias RoomWithRay = 
---     { roomStuff : () 
---     , sightray : Sightray
---     }
-
 
 type alias NonemptyList a = List.Nonempty.Nonempty a
 

@@ -18,10 +18,14 @@
 - use requestanimationframe for animations
 
 ## Internal
-- compute reflection bounce path
-- 
-- model things so that the link between bounce path segments and sightline segments is organic and first class or something. this is too vague to be a todo other than like "spend some time thinking about this"
-- 
+- RayStart unnecessary
+- rename MirrorBounce MirrorIntersection?
+- Sightray.fromRoomAndProjectedPath is kind of hacky because recursive calls return unfinished sightrays
+- Sightray.updateEndPos take a RayEnd but should maybe just take an entire Sightray
+- move Sightray.segmentSamplePoints to Shared
+- include angle info in MirrorBounce?
+- include neighbor points in MirrorBounce?
+- Sightray view attrs use default and merge with attrs passed in
 
 ## Bugs
 - mouse drag position is off kilter wrt player position
@@ -32,12 +36,6 @@
 - when you click the final animation step it gets weird
 - when sightray hits a corner the bounce escapes the room
 
-## Feature F1
-### Bugs
-- various computations get messed up when `zoomScale =/= 1`
-    - user position
-    - pivot point for computing mouse drag angle
-- 
 
 
 

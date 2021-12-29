@@ -52,9 +52,7 @@ import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
 import Time
 import Triangle2d
-import Sightray exposing (startPos)
 import Sightray exposing (Sightray)
-import Sightray exposing (interpReflect)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
 import Room exposing (projectedSightline)
@@ -520,14 +518,14 @@ viewDiagramSuccess model animation =
                 |> List.concat
                 |> Polygon2d.convexHull
                 |> Polygon2d.centroid
-                |> Maybe.withDefault (Sightray.startPos currentRay.start)
+                |> Maybe.withDefault currentRay.startPos
 
         viewSuccessRay sr = 
             Svg.g []
                 [ Sightray.view sr
                 , Svg.lineSegment2d 
                     (Sightray.lineAttrsDefault ++ [ Attr.stroke Shared.colors.yellow1, Attr.strokeWidth "0.04" ])
-                    (LineSegment2d.from model.room.viewerPos (Sightray.startPos sr.start))
+                    (LineSegment2d.from model.room.viewerPos sr.startPos)
                 ]
 
         transitionRayM = 
@@ -618,81 +616,12 @@ takeMin quantify p q =
         GT -> q
         _ -> p
 
-reflectedRooms : LineSegment -> Room.Model -> List Room.Model -> List Room.Model
-reflectedRooms sightline room roomsAcc = 
-    case Sightray.nextIntersection room sightline of
-        Just (Sightray.IntersectMirror bounce) -> 
-            reflectedRooms 
-                (LineSegment2d.from bounce.point (LineSegment2d.endPoint sightline))
-                (room |> Room.interpReflect bounce.axis 1)
-                (room :: roomsAcc)
-        _ -> 
-            room :: roomsAcc
-
-
-refRooms : LineSegment -> Room.Model -> List (Sightray.MirrorBounce, Room.Model)
-refRooms sightline room = 
-    let
-        nextRoom : 
-            (LineSegment, Room.Model) 
-            -> Maybe ((Sightray.MirrorBounce, Room.Model), (LineSegment, Room.Model))
-        nextRoom (sl, r) = 
-            case Sightray.nextIntersection r sl of 
-                Just (Sightray.IntersectMirror bounce) ->
-                    let nextR = r |> Room.interpReflect bounce.axis 1 in
-                    Just 
-                        ( (bounce, nextR)
-                        , ( LineSegment2d.from bounce.point (LineSegment2d.endPoint sl)
-                          , nextR
-                          )
-                        )
-                _ ->
-                    Nothing
-    in
-    List.unfoldr nextRoom (sightline, room)
-
-
-
-
-type Chain item rel
-    = Nil 
-    | Cons item (Maybe (Chainlink rel item))
-
-type Chainlink rel item 
-    = Chainlink rel (Chain item rel)
-
-type alias Hallway = Chain Room.Model Sightray.MirrorBounce
 
 
 rayNormal : Model -> Sightray
 rayNormal model =
     Sightray.fromRoomAndProjectedPath model.room
         (Room.projectedSightline model.room)
-
-raySuccess : Model -> SuccessAnimation -> Sightray
-raySuccess model animation = 
-    let normal = rayNormal model in
-    normal
-        |> Sightray.unravel
-        |> Array.fromList
-        |> Array.get animation.step
-        -- |> Maybe.andThen (Sightray.tail >> Maybe.map Tuple.second)
-        |> Maybe.withDefault normal
-            
-viewAnimationButtons : Model -> Element Msg 
-viewAnimationButtons model = 
-    (successAnimation model)
-        |> Maybe.map (\_ ->
-            El.row 
-                [ El.centerX 
-                , El.spacing 20 
-                ]
-                [ Input.button []
-                    { onPress = Just (StepAnimation 1)
-                    , label = El.text ">"
-                    }
-                ])
-        |> Maybe.withDefault El.none
 
 -- Frame, Units, Conversions --
 
@@ -722,54 +651,3 @@ svgToSceneCoords localFrame svg =
         |> Svg.placeIn localFrame
 
 
-
-{-
-[ ( Point2d { x = 0.35, y = -0.65 }
-  , { axis = 
-        Axis2d 
-            { direction = 
-                Direction2d { x = -0.9486832980505138, y = 0.3162277660168379 }
-            , originPoint = 
-                Point2d { x = 0.9116525411117986, y = 1.4461158196294002 } 
-            }
-    , point = Point2d { x = 0.9116525411117986, y = 1.4461158196294002 }
-    , wall = 
-        LineSegment2d 
-            ( Point2d { x = 2.25, y = 1 }
-            , Point2d { x = -1.5, y = 2.25 }
-            ) 
-    }
-  , Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
-  )
-, ( Point2d { x = 0.9116525411117986, y = 1.4461158196294002 }
-  , { axis = 
-        Axis2d 
-            { direction = Direction2d { x = 0.9701425001453319, y = 0.24253562503633297 }
-            , originPoint = Point2d { x = -0.3010947202186196, y = -1.575273680054655 } 
-            }
-    , point = Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
-    , wall = 
-        LineSegment2d 
-            ( Point2d { x = -2, y = -2 }
-            , Point2d { x = 2, y = -1 }
-            ) 
-    }
-  , Point2d { x = -1.8016028715674568, y = -0.31362440832338306 }
-  )
-, ( Point2d { x = -0.3010947202186196, y = -1.575273680054655 }
-  , { axis = 
-        Axis2d 
-            { direction = Direction2d { x = -0.1168412475673972, y = -0.9931506043228762 }
-            , originPoint = Point2d { x = -1.8016028715674568, y = -0.31362440832338306 } 
-            }
-    , point = Point2d { x = -1.8016028715674568, y = -0.31362440832338306 }
-    , wall = 
-        LineSegment2d 
-            ( Point2d { x = -1.5, y = 2.25 }
-            , Point2d { x = -2, y = -2 }
-            ) 
-    }
-  , Point2d { x = -1.2529381897372662, y = -0.038419010331397996 }
-  )
-]
--}

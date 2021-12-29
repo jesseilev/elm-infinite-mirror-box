@@ -25,14 +25,10 @@ import Point2d exposing (distanceFrom)
 import Angle
 
 type alias Sightray = 
-    { start : RayStart 
+    { startPos : Point
     , bounces : List MirrorBounce 
     , end : RayEnd 
     }
-
-type RayStart 
-    = StartAtPlayer Point
-    | MirrorProjection MirrorBounce
 
 type RayEnd 
     = TooFar Point
@@ -48,9 +44,9 @@ type alias MirrorBounce =
 
 -- Constructors -- 
 
-noBounces : RayStart -> RayEnd -> Sightray
-noBounces start end = 
-    Sightray start [] end
+noBounces : Point -> RayEnd -> Sightray
+noBounces startPos end = 
+    Sightray startPos [] end
 
 fromRoomAndProjectedPath : Room.Model -> LineSegment -> Sightray
 fromRoomAndProjectedPath room projectedPath = 
@@ -64,7 +60,7 @@ fromRoomAndProjectedPath room projectedPath =
 
         recurse bounce = 
             fromRoomAndProjectedPath room (nextProjectedPath bounce)
-                |> (\ray -> { ray | start = updateStartPos (\_ -> projectedStart) ray.start })
+                |> (\ray -> { ray | startPos = projectedStart } )
                 |> addBounce bounce
 
     in
@@ -72,9 +68,9 @@ fromRoomAndProjectedPath room projectedPath =
         Just (IntersectMirror bounce) -> 
             recurse bounce
         Just (IntersectItem point item) -> 
-            noBounces (StartAtPlayer projectedStart) (EndAtItem point item)
+            noBounces projectedStart (EndAtItem point item)
         _ ->
-            noBounces (StartAtPlayer projectedStart) (TooFar projectedEnd)
+            noBounces projectedStart (TooFar projectedEnd)
                 -- TODO dont hardcode the start and end types
  
 
@@ -83,11 +79,6 @@ fromRoomAndProjectedPath room projectedPath =
 addBounce : MirrorBounce -> Sightray -> Sightray
 addBounce bounce rp =
     { rp | bounces = bounce :: rp.bounces }
-
--- prependStart : Point -> Sightray -> Sightray
--- prependStart start rp = 
---     { rp | start = start }
---         -- |> addBounce rp.start
 
 mirrorAcross : Axis -> Sightray -> Sightray
 mirrorAcross axis ray =
@@ -102,18 +93,11 @@ mirrorAcross axis ray =
             , axis = Axis2d.mirrorAcross axis bounce.axis 
             }
     in
-    { start = updateStartPos reflectPoint ray.start 
+    { startPos = reflectPoint ray.startPos
     , bounces = List.map reflectBounce ray.bounces
     , end = updateEndPos reflectPoint ray.end 
     }
 
-
-updateStartPos : (Point -> Point) -> RayStart -> RayStart
-updateStartPos upd start =
-    let newPos = upd (startPos start) in
-    case start of 
-        StartAtPlayer _ -> StartAtPlayer newPos
-        MirrorProjection bounce -> MirrorProjection { bounce | point = newPos }
 
 updateEndPos : (Point -> Point) -> RayEnd -> RayEnd
 updateEndPos upd end =
@@ -123,12 +107,6 @@ updateEndPos upd end =
         EndAtItem _ item -> EndAtItem newPos item
 
 -- Properties --
-
-startPos : RayStart -> Point
-startPos rs = 
-    case rs of 
-        StartAtPlayer p -> p
-        MirrorProjection mb -> mb.point
 
 endPos : RayEnd -> Point 
 endPos re =
@@ -143,16 +121,16 @@ endItem ray =
         EndAtItem _ item -> Just item
 
 nextIntersection : Room.Model -> LineSegment -> Maybe Intersection
-nextIntersection room projectedPath =
+nextIntersection room projectedSightLine =
     let
         -- "trim" off the very beginning of the sightline by shrinking it slightly
         -- we dont want to count the start point as an intersection
         -- which will happen for all recursive calls since the sightline will start on a wall
         trimmedSightline = 
-            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedPath) 0.999 projectedPath   
+            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedSightLine) 0.999 projectedSightLine   
 
         startPoint = 
-            LineSegment2d.startPoint projectedPath
+            LineSegment2d.startPoint projectedSightLine
 
         nextMirrorBounceM = 
             Polygon2d.edges room.wallShape
@@ -178,7 +156,7 @@ nextIntersection room projectedPath =
         itemHitM =
             nextMirrorBounceM 
                 |> Maybe.map (.point >> LineSegment2d.from startPoint)
-                |> Maybe.withDefault projectedPath
+                |> Maybe.withDefault projectedSightLine
                 |> segmentSamplePoints
                 |> List.lift2 checkItemIntersection (Room.allItems room) 
                 |> Maybe.values
@@ -204,28 +182,28 @@ type Intersection
     = IntersectMirror MirrorBounce
     | IntersectItem Point RoomItem
 
-tail : Sightray -> Maybe (MirrorBounce, Sightray)
-tail ray =
-    case ray.bounces of 
-        [] -> Nothing 
-        b :: bs ->
-            { start = MirrorProjection b, bounces = bs , end = ray.end }
-                |> (\r -> Just (b, r))
+-- tail : Sightray -> Maybe (MirrorBounce, Sightray)
+-- tail ray =
+--     case ray.bounces of 
+--         [] -> Nothing 
+--         b :: bs ->
+--             { start = MirrorProjection b, bounces = bs , end = ray.end }
+--                 |> (\r -> Just (b, r))
 
--- all the steps in the unfolding animation 
--- from totally real at the beginning to totally projected at the end
-unravel : Sightray -> List Sightray
-unravel ray =
-    ray :: 
-        (tail ray 
-            |> Maybe.map (\(bounce, tailRay) -> 
-                mirrorAcross bounce.axis tailRay |> unravel
-            )
-            |> Maybe.withDefault []
-        )
--- TODO refactor using
--- tails ray == [ ray, tail ray, tail tail ray, ... ]
--- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
+-- -- all the steps in the unfolding animation 
+-- -- from totally real at the beginning to totally projected at the end
+-- unravel : Sightray -> List Sightray
+-- unravel ray =
+--     ray :: 
+--         (tail ray 
+--             |> Maybe.map (\(bounce, tailRay) -> 
+--                 mirrorAcross bounce.axis tailRay |> unravel
+--             )
+--             |> Maybe.withDefault []
+--         )
+-- -- TODO refactor using
+-- -- tails ray == [ ray, tail ray, tail tail ray, ... ]
+-- -- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
 
 uncurl : Sightray -> Maybe Sightray 
 uncurl ray = 
@@ -273,9 +251,12 @@ projectionsAndReflections ray =
 projections = 
     projectionsAndReflections >> Tuple.first
 
+reflections = 
+    projectionsAndReflections >> Tuple.second
+
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
-    startPos ray.start :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
+    ray.startPos :: (List.map .point ray.bounces) ++ [ endPos ray.end ]
 
 polyline : Sightray -> Polyline
 polyline ray = 
@@ -294,7 +275,7 @@ bouncesWithNeighborPoints ray =
                 |> Array.indexedMap (\i bounce ->
                     (Array.get (i - 1) bounces 
                         |> Maybe.map .point 
-                        |> Maybe.withDefault (startPos ray.start)
+                        |> Maybe.withDefault ray.startPos
                     , bounce
                     , Array.get (i + 1) bounces 
                         |> Maybe.map .point
@@ -322,8 +303,7 @@ bouncesWithAngles ray =
 
 interpolateFrom : Sightray -> Sightray -> Float -> Sightray
 interpolateFrom ray1 ray2 pct =
-    { start = ray1.start |> updateStartPos (\sp1 -> 
-        Shared.interpolatePointFrom sp1 (startPos ray2.start) pct)
+    { startPos = Shared.interpolatePointFrom ray1.startPos ray2.startPos pct
     , bounces = Shared.interpolateLists interpolateBounceFrom ray1.bounces ray2.bounces pct
     , end = ray1.end |> updateEndPos (\ep1 ->
         Shared.interpolatePointFrom ep1 (endPos ray2.end) pct)
@@ -339,7 +319,7 @@ interpolateBounceFrom bounce1 bounce2 pct =
 interpReflect : InterpolatedReflection Sightray
 interpReflect axis pct ray = 
     { ray 
-        | start = updateStartPos (interpReflectPoint axis pct) ray.start 
+        | startPos = interpReflectPoint axis pct ray.startPos
         , bounces = List.map (interpReflectBounce axis pct) ray.bounces
         , end = updateEndPos (interpReflectPoint axis pct) ray.end
     }
