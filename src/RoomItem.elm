@@ -5,7 +5,6 @@ module RoomItem exposing
     , containsPoint
     , radius
     , emojis
-    , Msg
     , view
     , interpReflect
     , interpolateFrom
@@ -50,7 +49,8 @@ updatePos : (Point -> Point) -> RoomItem -> RoomItem
 updatePos upd item = 
     { item | pos = upd item.pos }
 
-
+setEmoji emoji item =
+    { item | emoji = emoji }
 
 -- Properties --
 
@@ -72,7 +72,9 @@ interpReflect axis pct item =
 
 interpolateFrom : Shared.Interpolation RoomItem 
 interpolateFrom item1 item2 pct = 
-    item1 |> updatePos (\p1 -> Shared.interpolatePointFrom p1 item2.pos pct)
+    item1 
+        |> updatePos (\p1 -> Shared.interpolatePointFrom p1 item2.pos pct)
+        |> setEmoji (if pct < 0.5 then item1.emoji else item2.emoji)
 
 -- TODO make typesafe
 emojis = 
@@ -88,15 +90,12 @@ emojis =
     , parrot = "🦜"
     }
 
--- UPDATE
-
-type Msg = NoOp
 
 
 -- VIEW
 
 
-view : Bool -> RoomItem -> Svg Msg
+view : Bool -> RoomItem -> Svg msg
 view inFocus item = 
     let
         fontSize = (Quantity.unwrap radius) * 0.95

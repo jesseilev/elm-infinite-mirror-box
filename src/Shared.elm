@@ -6,7 +6,7 @@ import Circle2d exposing (Circle2d)
 import Color
 import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
-import Length exposing (Meters)
+import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import List.Extra as List
 import Pixels exposing (Pixels, pixels)
@@ -224,3 +224,10 @@ segmentSamplePoints line =
         |> List.map (\i -> 
             LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
         )
+
+projectedSightline : Point -> Direction -> Length -> LineSegment
+projectedSightline viewerPos viewerDirection sightDistance =
+    LineSegment2d.fromPointAndVector viewerPos
+        (Vector2d.withLength sightDistance 
+            (Frame2d.yDirection (viewerFrame viewerPos 
+                (Direction2d.toAngle viewerDirection))))

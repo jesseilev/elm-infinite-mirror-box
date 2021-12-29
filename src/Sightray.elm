@@ -153,8 +153,8 @@ nextIntersection room projectedSightLine =
                 Nothing
 
         isInitialPlayerItem (item, point, distance) = 
-            startPoint == room.viewerPos
-                && item == Room.playerItem room
+            startPoint == room.playerItem.pos
+                -- && item == Room.playerItem room
                 && (distance |> Quantity.lessThan RoomItem.radius)
 
         itemHitM =

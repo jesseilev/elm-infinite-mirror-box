@@ -20,7 +20,6 @@
 ## Internal
 - rename MirrorBounce MirrorIntersection?
 - Sightray.fromRoomAndProjectedPath is kind of hacky because recursive calls return unfinished sightrays
-- move Sightray.segmentSamplePoints to Shared
 - include angle info in MirrorBounce?
 - include neighbor points in MirrorBounce?
 - Sightray view attrs use default and merge with attrs passed in
@@ -32,6 +31,8 @@
 - angle arc view stuff in Main should move to Sightray
 - ray endpoint label in Main should move to Sightray
 - make getters instead of using .accessors eg ray.startPos
+- settle on name "viewer" vs "player"
+- RoomItem is kind of pointless. emoji should just be an argument to the view. point detection can just be a function in shared
 
 ## Bugs
 - mouse drag position is off kilter wrt player position

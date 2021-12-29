@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Angle exposing (Angle)
+import Arc2d
 import Array
 import Axis2d exposing (Axis2d)
 import Browser
@@ -55,10 +56,7 @@ import Triangle2d
 import Sightray exposing (Sightray)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
-import Room exposing (projectedSightline)
-import Arc2d
 import TypedSvg.Attributes exposing (direction)
-import RayPath exposing (nextBounce)
 
 main = 
     Browser.element
@@ -72,6 +70,8 @@ main =
 
 type alias Model = 
     { room : Room.Model
+    , viewerDirection : Direction
+    , sightDistance : Length
     , mouseDragPos : Maybe Point
     , dragging : Bool
     , zoomScale : Float
@@ -90,6 +90,8 @@ type FailReason
 init : () -> ( Model, Cmd Msg )
 init _ =
     { room = Room.init1
+    , viewerDirection = Direction2d.fromAngle (Angle.degrees -15)
+    , sightDistance = Length.meters 8.0
     , mouseDragPos = Nothing
     , dragging = False
     , zoomScale = 0.3
@@ -113,7 +115,6 @@ type Msg
     | DragStop
     | MouseClickAt (Point2d Meters SceneCoords)
     | AdjustZoom Float
-    | RoomMsg Room.Msg
     | StepAnimation Int
     | Tick
 
@@ -124,26 +125,23 @@ update msg model =
             if not model.dragging then 
                 model |> noCmds 
             else 
-                { model 
-                    | room = 
-                        model.mouseDragPos
-                            |> Maybe.map (\prevMouse -> 
-                                Room.update (Room.mouseDragMsg prevMouse mousePosInScene) model.room)
-                            |> Maybe.withDefault model.room
-                    , mouseDragPos = Just mousePosInScene
-                    , dragging = True
-                }
+                model.mouseDragPos 
+                    |> Maybe.map (updatePlayerDirection model mousePosInScene)
+                    |> Maybe.withDefault model
+                    |> (\updModel -> 
+                        { updModel | mouseDragPos = Just mousePosInScene, dragging = True }
+                    )
                     |> noCmds
 
         DragStart -> 
             { model | dragging = True, mouseDragPos = Nothing }
-                |> updateRoomStatus
+                -- |> updateRoomStatus
                 |> noCmds
 
         DragStop -> 
             { model | dragging = False, mouseDragPos = Nothing }
                 |> updatePhotoAttempt
-                |> updateRoomStatus
+                -- |> updateRoomStatus
                 |> noCmds
 
         MouseClickAt sceneOffsetPos -> 
@@ -179,6 +177,17 @@ update msg model =
         _ ->
             model |> noCmds
 
+
+updatePlayerDirection : Model -> Point -> Point -> Model
+updatePlayerDirection model mousePos prevMousePos =
+    let playerAngle = Direction2d.toAngle model.viewerDirection in
+    Shared.viewerFrame model.room.playerItem.pos playerAngle
+        |> Frame2d.originPoint
+        |> (\origin -> Shared.angleDiff origin prevMousePos mousePos)
+        |> Maybe.map (Quantity.plus playerAngle)
+        |> Maybe.withDefault playerAngle
+        |> (\angle -> { model | viewerDirection = Direction2d.fromAngle angle })
+
 updatePhotoAttempt : Model -> Model 
 updatePhotoAttempt model = 
     let 
@@ -194,8 +203,8 @@ updatePhotoAttempt model =
                 |> List.head -- TODO handle more than one? shouldnt be possible
 
         targetHit = 
-            itemHit == Just (targetItem model)
-                && closeEnough (Sightray.length ray) model.room.sightDistance
+            itemHit == Just (Room.targetItem model.room)
+                && closeEnough (Sightray.length ray) model.sightDistance
 
         newPhotoAttempt = 
             case (model.photoAttempt, targetHit) of 
@@ -217,14 +226,14 @@ updateSuccessAnimation upd model =
         Just (PhotoSuccess ani) -> { model | photoAttempt = Just (PhotoSuccess (upd ani)) }
         _ -> model
 
-roomStatus model = 
-    case ((successAnimation model), model.dragging) of
-        (Just _, _) -> Room.TakingPic
-        (_, False) -> Room.Standing
-        (_, True) -> Room.LookingAround
+-- roomStatus model = 
+--     case ((successAnimation model), model.dragging) of
+--         (Just _, _) -> Room.TakingPic
+--         (_, False) -> Room.Standing
+--         (_, True) -> Room.LookingAround
 
-updateRoomStatus model =
-    { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
+-- updateRoomStatus model =
+--     { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
 
 -- TODO just make it an actual Item in the first place
 targetItem model =
@@ -279,7 +288,7 @@ view model =
                     , Border.color <| El.rgb 0.9 0.9 0.9
                     -- , Background.color <| El.rgb 0.9 0.9 0.9
                     ] 
-                    [ viewParagraph <| instructionsText model.room.sightDistance
+                    [ viewParagraph <| instructionsText model.sightDistance
                     , El.el 
                         [ El.centerX 
                         ] 
@@ -300,11 +309,7 @@ sightrayDistance model =
     rayNormal model 
         |> Sightray.length
         |> (\dist -> 
-            if closeEnough model.room.sightDistance dist 
-                then
-                    model.room.sightDistance 
-                else 
-                    dist
+            if closeEnough model.sightDistance dist then model.sightDistance else dist
         )
         |> Length.inMeters
         |> ((*) 100)
@@ -384,7 +389,7 @@ viewDiagramNormal model =
             else 
                 Shared.svgEmpty
         , Sightray.view ray
-        , Room.view model.room |> Svg.map RoomMsg
+        , Room.view model.room
         -- , rayEndpointLabel ray
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
@@ -525,7 +530,7 @@ viewDiagramSuccess model animation =
                 [ Sightray.view sr
                 , Svg.lineSegment2d 
                     (Sightray.lineAttrsDefault ++ [ Attr.stroke Shared.colors.yellow1, Attr.strokeWidth "0.04" ])
-                    (LineSegment2d.from model.room.viewerPos sr.startPos)
+                    (LineSegment2d.from model.room.playerItem.pos sr.startPos)
                 ]
 
         transitionRayM = 
@@ -552,12 +557,12 @@ viewDiagramSuccess model animation =
     Svg.g [ ] 
         [ transitionRayM |> Maybe.withDefault currentRay |> viewSuccessRay 
         , rooms
-            |> List.map (Room.view >> Svg.map RoomMsg)
+            |> List.map Room.view
             |> Svg.g [ Attr.opacity "0.5" ]
         , transitionRoomM 
-            |> Maybe.map (Room.view >> Svg.map RoomMsg)
+            |> Maybe.map Room.view
             |> Maybe.withDefault Shared.svgEmpty
-        , Room.view model.room |> Svg.map RoomMsg
+        , Room.view model.room
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
         |> Svg.at (pixelsPerMeterWithZoomScale currentZoomScale)
@@ -621,7 +626,10 @@ takeMin quantify p q =
 rayNormal : Model -> Sightray
 rayNormal model =
     Sightray.fromRoomAndProjectedPath model.room
-        (Room.projectedSightline model.room)
+        (Shared.projectedSightline model.room.playerItem.pos 
+            model.viewerDirection 
+            model.sightDistance
+        )
 
 -- Frame, Units, Conversions --
 
