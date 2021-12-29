@@ -3,7 +3,9 @@
 
 
 ## Features
-- render success animation smooth transitions
+- label distance of straight portion during animation
+- label distance during regular
+- only label angles that aren't on top of each other
 - multple room arrangement challenges
 - when you complete one room, it moves to the next
 - text feedback when you take a pic and fail

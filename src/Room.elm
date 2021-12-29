@@ -92,11 +92,11 @@ init1 =
     , status = Standing
     , sightDistance = Length.meters 8.0
     , targetPos = Point2d.meters 1.5 0.2
-    , trees = 
-        [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
-        , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
-        , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant
-        ]
+    , trees = []
+        -- [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
+        -- , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
+        -- , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant
+        -- ]
     }
 
 -- TODO just make these things actual items

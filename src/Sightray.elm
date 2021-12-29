@@ -135,6 +135,12 @@ endPos re =
         TooFar p -> p
         EndAtItem p _ -> p
 
+endItem : Sightray -> Maybe RoomItem
+endItem ray = 
+    case ray.end of 
+        TooFar _ -> Nothing 
+        EndAtItem _ item -> Just item
+
 nextIntersection : Room.Model -> LineSegment -> Maybe Intersection
 nextIntersection room projectedPath =
     let

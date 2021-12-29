@@ -286,20 +286,7 @@ view model =
                         [ El.centerX 
                         ] 
                         <| El.html (svgContainer model) 
-                    , rayNormal model 
-                        |> Sightray.length
-                        |> (\dist -> 
-                            if closeEnough model.room.sightDistance dist 
-                                then
-                                    model.room.sightDistance 
-                                else 
-                                    dist
-                        )
-                        |> Length.inMeters
-                        |> ((*) 100)
-                        |> round
-                        |> toFloat 
-                        |> (\l -> l / 100)
+                    , sightrayDistance model
                         |> String.fromFloat
                         |> (\dist -> "Your distance: " ++ dist ++ " meters")
                         |> El.text
@@ -310,6 +297,22 @@ view model =
                 ]
             )
         )
+
+sightrayDistance model =
+    rayNormal model 
+        |> Sightray.length
+        |> (\dist -> 
+            if closeEnough model.room.sightDistance dist 
+                then
+                    model.room.sightDistance 
+                else 
+                    dist
+        )
+        |> Length.inMeters
+        |> ((*) 100)
+        |> round
+        |> toFloat 
+        |> (\l -> l / 100)
 
 closeEnough =
     Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
@@ -384,10 +387,38 @@ viewDiagramNormal model =
                 Shared.svgEmpty
         , Sightray.view ray
         , Room.view model.room |> Svg.map RoomMsg
+        -- , rayEndpointLabel ray
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.topLeftFrame
 
+rayEndpointLabel ray = 
+    let 
+        itemM = 
+            Sightray.endItem ray
+        center = 
+            itemM |> Maybe.map .pos |> Maybe.withDefault (Sightray.endPos ray.end)
+            
+    in
+    Svg.g [] 
+        [ Svg.circle2d 
+            [ Attr.fill <| if Maybe.isJust itemM then "none" else "white"
+            , Attr.strokeWidth "0.01"
+            , Attr.stroke "black"
+            ]
+            (Circle2d.atPoint center RoomItem.radius)
+        , Svg.text_ 
+            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
+            , Attr.x (-0.5 * 0.25 |> String.fromFloat)
+            , Attr.fill "black"
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ "8m"
+                |> Svg.text 
+            ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin center)
+        ]
 
 viewWedge color (angle, arc) =
     Svg.g 
@@ -399,7 +430,7 @@ viewWedge color (angle, arc) =
         Svg.arc2d 
             [ Attr.fill color
             , Attr.stroke "black" --fill
-            , Attr.strokeWidth "0.01"
+            , Attr.strokeWidth "0.005"
             -- , Attr.opacity "0.33"
             ] 
             arc
@@ -408,7 +439,7 @@ viewWedge color (angle, arc) =
             [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
             , Attr.x (-0.5 * 0.25 |> String.fromFloat)
             , Attr.fill "black"
-            , Attr.opacity "0"
+            -- , Attr.opacity "0"
             , Attr.alignmentBaseline "central"
             ] 
             [ angle 
@@ -435,6 +466,7 @@ angleColor i =
     ] 
         |> Array.fromList 
         |> Array.get (i |> modBy 4)
+        |> Maybe.map (\_ -> "white")
         |> Maybe.withDefault "grey"
 
 
@@ -489,7 +521,8 @@ viewDiagramSuccess model animation =
                 --     |> List.map (\(wedge1, wedge2) -> [ viewWedge "grey" wedge1, viewWedge "grey" wedge2 ])
                 --     |> List.concat
                 --     |> Svg.g []
-                , Svg.lineSegment2d Sightray.lineAttrsDefault 
+                , Svg.lineSegment2d 
+                    (Sightray.lineAttrsDefault ++ [ Attr.stroke Shared.colors.yellow1, Attr.strokeWidth "0.04" ])
                     (LineSegment2d.from model.room.viewerPos (Sightray.startPos sr.start))
                 ]
 
