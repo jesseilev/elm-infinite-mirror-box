@@ -38,12 +38,6 @@ import Shared exposing
     , LineSegment
     , Point 
     , Polygon 
-    , SceneCoords
-    , TopLeftCoords
-    , InterpolatedReflection
-    , interpReflectPoint
-    , interpReflectPolygon
-    , interpReflectPolyline
     )
 import Vector2d
 import Direction2d exposing (Direction2d)
@@ -99,7 +93,7 @@ targetItem =
 -- FUNCTIONS
 
 
-interpReflect : InterpolatedReflection Model 
+interpReflect : Shared.InterpolatedReflection Model 
 interpReflect axis pct model =
     { wallShape = Shared.interpReflectPolygon axis pct model.wallShape
     , playerItem = RoomItem.interpReflect axis pct model.playerItem

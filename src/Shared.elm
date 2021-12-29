@@ -6,6 +6,7 @@ import Circle2d exposing (Circle2d)
 import Color
 import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
+import Geometry.Svg as Svg
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import List.Extra as List
@@ -15,7 +16,9 @@ import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
 import Quantity
 import Svg exposing (Svg)
+import Svg.Attributes as Attr
 import Vector2d
+import Rectangle2d exposing (Rectangle2d)
 
 -- Coordinate systems --
 
@@ -33,7 +36,7 @@ type alias Polyline = Polyline2d Meters SceneCoords
 type SceneCoords = SceneCoords
 
 {- origin point at the top left of the frame, x -> right, y -> down -}
-type TopLeftCoords = TopLeftCoords 
+type SvgCoords = SvgCoords 
 
 pixelsPerMeter = 
     pixels 100 
@@ -41,8 +44,8 @@ pixelsPerMeter =
 
 -- Frames --
 
-topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-topLeftFrame = 
+svgFrame : Frame2d Pixels SceneCoords { defines : SvgCoords }
+svgFrame = 
     Frame2d.atOrigin
         |> Frame2d.translateBy
             (Vector2d.xy
@@ -50,8 +53,8 @@ topLeftFrame =
                 (pixels <| constants.containerHeight / 2.0))
         |> Frame2d.reverseY
 
-viewerFrame : Point -> Angle -> Frame2d Meters SceneCoords { defines : SceneCoords }
-viewerFrame viewerPos viewerAngle = 
+playerFrame : Point -> Angle -> Frame2d Meters SceneCoords { defines : SceneCoords }
+playerFrame viewerPos viewerAngle = 
     roomFrame
         |> Frame2d.rotateAround Point2d.origin viewerAngle
         |> Frame2d.translateBy (Vector2d.from Point2d.origin viewerPos)
@@ -61,11 +64,25 @@ viewerFrame viewerPos viewerAngle =
 roomFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
 roomFrame = 
     Frame2d.atOrigin
-    -- viewerFrame model
+    -- playerFrame model
         -- |> Frame2d.translateBy (Vector2d.reverse 
         --     (Vector2d.from Point2d.origin model.viewerPos))
-        -- |> Frame2d.rotateAround (Frame2d.originPoint <| viewerFrame model) 
+        -- |> Frame2d.rotateAround (Frame2d.originPoint <| playerFrame model) 
         --     (Quantity.negate model.viewerAngle)
+
+viewFrame : String -> Frame2d Meters SceneCoords { defines : SceneCoords } -> Svg msg
+viewFrame color frame = 
+    let originPoint = Frame2d.originPoint frame in
+    Svg.g 
+        []
+        [ Svg.rectangle2d [ Attr.fill color, Attr.opacity "0.2" ]
+            (Rectangle2d.from originPoint
+                (originPoint
+                    |> Point2d.translateIn (Frame2d.xDirection frame) (Length.meters 0.25)
+                    |> Point2d.translateIn (Frame2d.yDirection frame) (Length.meters 0.95)
+                )
+            )
+        ]
 
 
 constants =
@@ -229,5 +246,5 @@ projectedSightline : Point -> Direction -> Length -> LineSegment
 projectedSightline viewerPos viewerDirection sightDistance =
     LineSegment2d.fromPointAndVector viewerPos
         (Vector2d.withLength sightDistance 
-            (Frame2d.yDirection (viewerFrame viewerPos 
+            (Frame2d.yDirection (playerFrame viewerPos 
                 (Direction2d.toAngle viewerDirection))))

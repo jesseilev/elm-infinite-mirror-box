@@ -70,11 +70,10 @@ main =
 
 type alias Model = 
     { room : Room.Model
-    , viewerDirection : Direction
+    , sightDirection : Direction
     , sightDistance : Length
     , mouseDragPos : Maybe Point
     , dragging : Bool
-    , zoomScale : Float
     , photoAttempt : Maybe PhotoAttempt
     }
 
@@ -90,11 +89,10 @@ type FailReason
 init : () -> ( Model, Cmd Msg )
 init _ =
     { room = Room.init1
-    , viewerDirection = Direction2d.fromAngle (Angle.degrees -15)
+    , sightDirection = Direction2d.fromAngle (Angle.degrees -15)
     , sightDistance = Length.meters 8.0
     , mouseDragPos = Nothing
     , dragging = False
-    , zoomScale = 0.3
     , photoAttempt = Nothing
     }
         |> noCmds
@@ -148,12 +146,6 @@ update msg model =
             model 
                 |> updatePhotoAttempt
                 |> noCmds
-        
-        AdjustZoom deltaY ->
-            { model  
-                | zoomScale = model.zoomScale * (1.1 ^ (sign deltaY))
-            }
-                |> noCmds
 
         StepAnimation stepDiff ->
             model |> updateSuccessAnimation (\ani -> 
@@ -180,13 +172,11 @@ update msg model =
 
 updatePlayerDirection : Model -> Point -> Point -> Model
 updatePlayerDirection model mousePos prevMousePos =
-    let playerAngle = Direction2d.toAngle model.viewerDirection in
-    Shared.viewerFrame model.room.playerItem.pos playerAngle
-        |> Frame2d.originPoint
-        |> (\origin -> Shared.angleDiff origin prevMousePos mousePos)
+    let playerAngle = Direction2d.toAngle model.sightDirection in
+    Shared.angleDiff model.room.playerItem.pos prevMousePos mousePos
         |> Maybe.map (Quantity.plus playerAngle)
         |> Maybe.withDefault playerAngle
-        |> (\angle -> { model | viewerDirection = Direction2d.fromAngle angle })
+        |> (\angle -> { model | sightDirection = Direction2d.fromAngle angle })
 
 updatePhotoAttempt : Model -> Model 
 updatePhotoAttempt model = 
@@ -355,7 +345,7 @@ svgContainer model =
         , Pointer.onLeave (\_ -> DragStop)
         , Pointer.onMove (\event -> 
             if model.dragging then 
-                MouseDragAt (mouseToSceneCoords model.zoomScale event.pointer.offsetPos)
+                MouseDragAt (mouseToSceneCoords (currentZoomScale model) event.pointer.offsetPos)
             else 
                 NoOp)
         , Html.Attributes.style "cursor" (if model.dragging then "grabbing" else "grab")
@@ -390,10 +380,18 @@ viewDiagramNormal model =
                 Shared.svgEmpty
         , Sightray.view ray
         , Room.view model.room
+        , model.mouseDragPos |> Maybe.map (debugCircle "red") |> Maybe.withDefault Shared.svgEmpty
         -- , rayEndpointLabel ray
+        -- , Shared.viewFrame "red" 
+        --     (Shared.playerFrame model.room.playerItem.pos (Direction2d.toAngle model.sightDirection))
+
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
-        |> Svg.relativeTo Shared.topLeftFrame
+        |> Svg.relativeTo Shared.svgFrame
+
+debugCircle color pos = 
+    Svg.circle2d [ Attr.fill color ]
+        (Circle2d.atPoint pos (Length.meters 0.125))
 
 rayEndpointLabel ray = 
     let 
@@ -546,13 +544,6 @@ viewDiagramSuccess model animation =
         --                 tail
         --         )
 
-        zoomScaleForStep s = 
-            toFloat (s + 1) ^ -0.7
-
-        currentZoomScale = 
-            Float.interpolateFrom (zoomScaleForStep animation.step) 
-                (zoomScaleForStep (animation.step + 1))
-                (animation.transitionPct |> Maybe.withDefault 0)
     in
     Svg.g [ ] 
         [ transitionRayM |> Maybe.withDefault currentRay |> viewSuccessRay 
@@ -565,9 +556,21 @@ viewDiagramSuccess model animation =
         , Room.view model.room
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
-        |> Svg.at (pixelsPerMeterWithZoomScale currentZoomScale)
-        |> Svg.relativeTo Shared.topLeftFrame
+        |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
+        |> Svg.relativeTo Shared.svgFrame
 
+
+currentZoomScale : Model -> Float
+currentZoomScale model = 
+    let 
+        zoomScaleForStep s = toFloat (s + 1) ^ -0.7 
+        animation = successAnimation model
+        step = animation |> Maybe.map .step |> Maybe.withDefault 0
+        transitionPct = animation |> Maybe.andThen .transitionPct |> Maybe.withDefault 0
+    in
+    Float.interpolateFrom (zoomScaleForStep step) 
+        (zoomScaleForStep (step + 1))
+        transitionPct 
 
 angleArcs ray = 
     let 
@@ -627,7 +630,7 @@ rayNormal : Model -> Sightray
 rayNormal model =
     Sightray.fromRoomAndProjectedPath model.room
         (Shared.projectedSightline model.room.playerItem.pos 
-            model.viewerDirection 
+            model.sightDirection 
             model.sightDistance
         )
 
@@ -637,19 +640,11 @@ pixelsPerMeterWithZoomScale zoomScale =
     Shared.pixelsPerMeter
         |> Quantity.multiplyBy zoomScale
 
-topLeftFrame : Frame2d Pixels SceneCoords { defines : TopLeftCoords }
-topLeftFrame = 
-    Frame2d.atOrigin
-        |> Frame2d.translateBy
-            (Vector2d.xy
-                (pixels <| -constants.containerWidth / 2.0)
-                (pixels <| constants.containerHeight / 2.0))
-        |> Frame2d.reverseY
 
 mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
 mouseToSceneCoords zoomScale (x, y) = 
     Point2d.pixels x y
-        |> Point2d.placeIn topLeftFrame
+        |> Point2d.placeIn Shared.svgFrame
         |> Point2d.at_ (pixelsPerMeterWithZoomScale zoomScale)
 
 svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
