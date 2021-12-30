@@ -79,12 +79,17 @@ type alias Model =
 
 type PhotoAttempt
     = PhotoFail FailReason
-    | PhotoSuccess Shared.SuccessAnimation
+    | PhotoSuccess SuccessAnimation
 
 type FailReason
     = NoItem
     | WrongItem RoomItem
     | TooClose Length
+
+type alias SuccessAnimation = 
+    { step : Int 
+    , transitionPct : Maybe Float
+    }
 
 init : () -> ( Model, Cmd Msg )
 init _ =
@@ -97,21 +102,57 @@ init _ =
     }
         |> noCmds
 
-successAnimation : Model -> Maybe Shared.SuccessAnimation
+
+ -- MODEL PROPERTIES --
+
+successAnimation : Model -> Maybe SuccessAnimation
 successAnimation model = 
     case model.photoAttempt of 
         Just (PhotoSuccess ani) -> Just ani
         _ -> Nothing
+
+currentZoomScale : Model -> Float
+currentZoomScale model = 
+    let 
+        zoomScaleForStep s = toFloat (s + 1) ^ -0.7 
+        animation = successAnimation model
+        step = animation |> Maybe.map .step |> Maybe.withDefault 0
+        transitionPct = animation |> Maybe.andThen .transitionPct |> Maybe.withDefault 0
+    in
+    Float.interpolateFrom (zoomScaleForStep step) 
+        (zoomScaleForStep (step + 1))
+        transitionPct 
+
+rayNormal : Model -> Sightray
+rayNormal model =
+    Sightray.fromRoomAndProjectedPath model.room
+        (Shared.projectedSightline model.room.playerItem.pos 
+            model.sightDirection 
+            model.sightDistance
+        )
+
+
+rayDistance model =
+    rayNormal model 
+        |> Sightray.length
+        |> (\dist -> 
+            if closeEnough model.sightDistance dist then model.sightDistance else dist
+        )
+        |> Length.inMeters
+        |> ((*) 100)
+        |> round
+        |> toFloat 
+        |> (\l -> l / 100)
 
 
 -- UPDATE --
 
 type Msg 
     = NoOp
-    | MouseDragAt (Point2d Meters SceneCoords)
+    | MouseDragAt Point
     | DragStart
     | DragStop
-    | MouseClickAt (Point2d Meters SceneCoords)
+    | MouseClickAt Point
     | AdjustZoom Float
     | StepAnimation Int
     | Tick
@@ -193,13 +234,16 @@ updatePhotoAttempt model =
                 |> List.head -- TODO handle more than one? shouldnt be possible
 
         targetHit = 
-            itemHit == Just (Room.targetItem model.room)
+            Sightray.endItem ray == Just (Room.targetItem model.room)
                 && closeEnough (Sightray.length ray) model.sightDistance
+
+        
+
 
         newPhotoAttempt = 
             case (model.photoAttempt, targetHit) of 
                 (Nothing, True) -> 
-                    Just <| PhotoSuccess (Shared.SuccessAnimation 0 Nothing)
+                    Just <| PhotoSuccess (SuccessAnimation 0 Nothing)
                 -- (Nothing, Just False) ->
                 --     Just <| PhotoFail (WrongItem itemHit)
                 -- (Nothing, Nothing) ->
@@ -209,12 +253,16 @@ updatePhotoAttempt model =
                     model.photoAttempt
     in
     { model | photoAttempt = newPhotoAttempt }
-
-updateSuccessAnimation : (Shared.SuccessAnimation -> Shared.SuccessAnimation) -> Model -> Model
+    
+updateSuccessAnimation : (SuccessAnimation -> SuccessAnimation) -> Model -> Model
 updateSuccessAnimation upd model = 
     case model.photoAttempt of 
         Just (PhotoSuccess ani) -> { model | photoAttempt = Just (PhotoSuccess (upd ani)) }
         _ -> model
+
+closeEnough : Length -> Length -> Bool
+closeEnough =
+    Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
 
 -- roomStatus model = 
 --     case ((successAnimation model), model.dragging) of
@@ -224,10 +272,6 @@ updateSuccessAnimation upd model =
 
 -- updateRoomStatus model =
 --     { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
-
--- TODO just make it an actual Item in the first place
-targetItem model =
-    RoomItem.init model.room.targetPos RoomItem.emojis.parrot
 
 
 -- SUBSCRIPTIONS --
@@ -247,7 +291,6 @@ view model =
     El.layout 
         [ El.width El.fill
         , El.height El.fill 
-        -- , Background.color (El.rgb 0.5 0.5 0.5)
         ]
         (El.el 
             [] 
@@ -263,7 +306,6 @@ view model =
                         , url = "https://fonts.googleapis.com/css?family=Cantarell"
                         }
                     ]
-                -- , Font.wordSpacing 4
                 , Font.color (El.rgb 0.35 0.35 0.35)
                 ]
                 [ El.el [ Region.heading 1, Font.size 30 ] <| El.text "Pat's Infinite Bird Box"
@@ -276,39 +318,22 @@ view model =
                     , El.spacing 20
                     , Border.width 2
                     , Border.color <| El.rgb 0.9 0.9 0.9
-                    -- , Background.color <| El.rgb 0.9 0.9 0.9
                     ] 
                     [ viewParagraph <| instructionsText model.sightDistance
                     , El.el 
                         [ El.centerX 
                         ] 
                         <| El.html (svgContainer model) 
-                    , sightrayDistance model
+                    , rayDistance model
                         |> String.fromFloat
                         |> (\dist -> "Your distance: " ++ dist ++ " meters")
                         |> El.text
-                    , successAnimation model 
-                        |> Debug.toString
-                        |> El.text
+                    -- , successAnimation model 
+                    --     |> El.text
                     ]
                 ]
             )
         )
-
-sightrayDistance model =
-    rayNormal model 
-        |> Sightray.length
-        |> (\dist -> 
-            if closeEnough model.sightDistance dist then model.sightDistance else dist
-        )
-        |> Length.inMeters
-        |> ((*) 100)
-        |> round
-        |> toFloat 
-        |> (\l -> l / 100)
-
-closeEnough =
-    Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
 
 viewParagraph text = 
     El.paragraph 
@@ -370,17 +395,9 @@ viewDiagramNormal model =
         ray = rayNormal model 
     in
     Svg.g []
-        [ if model.dragging then 
-            angleArcs ray
-                |> List.indexedMap (\i (wedge1, wedge2) -> 
-                    [ viewWedge (angleColor i) wedge1, viewWedge (angleColor i) wedge2 ])
-                |> List.concat
-                |> Svg.g []
-            else 
-                Shared.svgEmpty
-        , Sightray.view ray
+        [ Sightray.viewWithOptions { showAngles = model.dragging, attributes = [] } ray
         , Room.view model.room
-        , model.mouseDragPos |> Maybe.map (debugCircle "red") |> Maybe.withDefault Shared.svgEmpty
+        -- , model.mouseDragPos |> Maybe.map (Shared.debugCircle "red") |> Maybe.withDefault Shared.svgEmpty
         -- , rayEndpointLabel ray
         -- , Shared.viewFrame "red" 
         --     (Shared.playerFrame model.room.playerItem.pos (Direction2d.toAngle model.sightDirection))
@@ -388,10 +405,6 @@ viewDiagramNormal model =
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame
-
-debugCircle color pos = 
-    Svg.circle2d [ Attr.fill color ]
-        (Circle2d.atPoint pos (Length.meters 0.125))
 
 rayEndpointLabel ray = 
     let 
@@ -421,66 +434,7 @@ rayEndpointLabel ray =
             |> Svg.translateBy (Vector2d.from Point2d.origin center)
         ]
 
-viewWedge color (angle, arc) =
-    Svg.g 
-        []
-        [ 
-        -- Svg.triangle2d [ Attr.fill "white" ] 
-        --     (triangleForArc (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) 3))
-        -- ,
-        Svg.arc2d 
-            [ Attr.fill color
-            , Attr.stroke "black" --fill
-            , Attr.strokeWidth "0.005"
-            -- , Attr.opacity "0.33"
-            ] 
-            arc
-        , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
-        , Svg.text_ 
-            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
-            , Attr.x (-0.5 * 0.25 |> String.fromFloat)
-            , Attr.fill "black"
-            -- , Attr.opacity "0"
-            , Attr.alignmentBaseline "central"
-            ] 
-            [ angle 
-                |> Quantity.abs 
-                |> Angle.inDegrees 
-                |> round 
-                |> String.fromInt 
-                |> (\s -> s ++ "º")
-                |> Svg.text 
-            ]
-            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
-            |> Svg.translateBy (Vector2d.from Point2d.origin 
-                (Arc2d.midpoint 
-                    (arc |> Arc2d.scaleAbout (Arc2d.centerPoint arc) arcLabelDistanceScale)
-                )
-            )
-        ]
-
-angleColor i = 
-    [ Shared.colors.yellow1 
-    , Shared.colors.blue1 
-    , Shared.colors.red1
-    , Shared.colors.green1
-    ] 
-        |> Array.fromList 
-        |> Array.get (i |> modBy 4)
-        |> Maybe.map (\_ -> "white")
-        |> Maybe.withDefault "grey"
-
-
-angleArcRadius = 0.25
-arcLabelDistanceScale = 1.65
-
-
-triangleForArc arc = 
-    Triangle2d.from (Arc2d.centerPoint arc)
-        (Arc2d.startPoint arc) 
-        (Arc2d.endPoint arc)
-
-viewDiagramSuccess : Model -> Shared.SuccessAnimation -> Svg Msg
+viewDiagramSuccess : Model -> SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
     let 
         (currentRay, nextRayM) = 
@@ -560,86 +514,12 @@ viewDiagramSuccess model animation =
         |> Svg.relativeTo Shared.svgFrame
 
 
-currentZoomScale : Model -> Float
-currentZoomScale model = 
-    let 
-        zoomScaleForStep s = toFloat (s + 1) ^ -0.7 
-        animation = successAnimation model
-        step = animation |> Maybe.map .step |> Maybe.withDefault 0
-        transitionPct = animation |> Maybe.andThen .transitionPct |> Maybe.withDefault 0
-    in
-    Float.interpolateFrom (zoomScaleForStep step) 
-        (zoomScaleForStep (step + 1))
-        transitionPct 
-
-angleArcs ray = 
-    let 
-        mkWedge bounce neighbor = 
-            let 
-                pointOnAxis modDirection = 
-                    Point2d.translateIn (Axis2d.direction bounce.axis |> modDirection) 
-                        (Length.meters angleArcRadius) 
-                        bounce.point
-            in 
-            takeMin (Point2d.distanceFrom neighbor) 
-                (pointOnAxis identity) 
-                (pointOnAxis Direction2d.reverse) 
-                |> (\poa -> 
-                    Shared.angleDiff bounce.point poa neighbor
-                        |> Maybe.withDefault (Angle.degrees 0)
-                        |> within180
-                        |> (\angle -> ( angle, Arc2d.sweptAround bounce.point angle poa ))
-                )
-                
-    in
-    Sightray.bouncesWithNeighborPoints ray 
-        |> List.map (\(prev, bounce, next) -> ( mkWedge bounce prev, mkWedge bounce next )) 
-
-within180 : Angle -> Angle 
-within180 angle = 
-    let 
-        outOfRange = 
-            (angle |> Quantity.greaterThan (Angle.degrees 180))
-                || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
-
-        fixPozi a = 
-            if a |> Quantity.greaterThan (Angle.degrees 180) then 
-                a |> Quantity.minus (Angle.degrees 360)
-            else 
-                a
-
-        fixNegi a = 
-            if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
-                a |> Quantity.plus (Angle.degrees 360)
-            else 
-                a
-    in
-        angle 
-            |> fixPozi
-            |> fixNegi
-
-takeMin : (a -> Quantity number c) -> a -> a -> a
-takeMin quantify p q = 
-    case Quantity.compare (quantify p) (quantify q) of
-        GT -> q
-        _ -> p
-
-
-
-rayNormal : Model -> Sightray
-rayNormal model =
-    Sightray.fromRoomAndProjectedPath model.room
-        (Shared.projectedSightline model.room.playerItem.pos 
-            model.sightDirection 
-            model.sightDistance
-        )
 
 -- Frame, Units, Conversions --
 
+pixelsPerMeterWithZoomScale : Float -> Quantity Float (Quantity.Rate Pixels Meters)
 pixelsPerMeterWithZoomScale zoomScale = 
-    Shared.pixelsPerMeter
-        |> Quantity.multiplyBy zoomScale
-
+    Shared.pixelsPerMeter |> Quantity.multiplyBy zoomScale
 
 mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
 mouseToSceneCoords zoomScale (x, y) = 

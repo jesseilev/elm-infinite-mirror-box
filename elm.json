@@ -24,7 +24,8 @@
             "ianmackenzie/elm-units": "2.9.0",
             "mdgriffith/elm-ui": "1.1.8",
             "mgold/elm-nonempty-list": "4.2.0",
-            "mpizenberg/elm-pointer-events": "4.0.2"
+            "mpizenberg/elm-pointer-events": "4.0.2",
+            "noahzgordon/elm-color-extra": "1.0.2"
         },
         "indirect": {
             "elm/bytes": "1.0.8",
@@ -34,6 +35,7 @@
             "elm/random": "1.0.0",
             "elm/regex": "1.0.0",
             "elm/url": "1.0.0",
+            "fredcy/elm-parseint": "2.0.1",
             "ianmackenzie/elm-interval": "2.0.0",
             "ianmackenzie/elm-triangular-mesh": "1.1.0",
             "ianmackenzie/elm-units-interval": "2.3.0"

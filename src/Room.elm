@@ -66,7 +66,8 @@ init1 =
             ]
     , playerItem = RoomItem (Point2d.meters 0.35 -0.65) RoomItem.emojis.cat
     , targetItem = RoomItem (Point2d.meters 1.5 0.2) RoomItem.emojis.parrot
-    , trees = []
+    , trees =
+        []
         -- [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
         -- , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
         -- , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant

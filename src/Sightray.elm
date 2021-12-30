@@ -1,9 +1,13 @@
 module Sightray exposing (..)
 
 import Angle exposing (Angle)
+import Arc2d
 import Array exposing (Array)
 import Axis2d
 import Circle2d
+import Color exposing (Color)
+import Color.Convert as Color
+import Color.Interpolate as Color
 import Direction2d
 import Geometry.Svg as Svg
 import Length exposing (Length)
@@ -14,15 +18,17 @@ import Maybe.Extra as Maybe
 import Point2d
 import Polygon2d
 import Polyline2d
+import Quantity exposing (Quantity)
 import Room
 import RoomItem exposing (RoomItem)
 import Shared exposing (..)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import Quantity exposing (Quantity)
-import Html.Attributes exposing (start)
-import Point2d exposing (distanceFrom)
-import Angle
+import Triangle2d
+import Vector2d 
+import Arc2d exposing (Arc2d)
+import String exposing (lines)
+import Arc2d exposing (startPoint)
 
 type alias Sightray = 
     { startPos : Point
@@ -295,6 +301,53 @@ bouncesWithAngles ray =
                 |> (\a -> (bounce, a))
         )
 
+angleArcs : Sightray -> List (Arc, MirrorBounce, Arc)
+angleArcs ray = 
+    let 
+        mkWedge bounce neighbor = 
+            let 
+                pointOnAxis modDirection = 
+                    Point2d.translateIn (Axis2d.direction bounce.axis |> modDirection) 
+                        angleArcRadius
+                        bounce.point
+            in 
+            Shared.takeMin (Point2d.distanceFrom neighbor) 
+                (pointOnAxis identity) 
+                (pointOnAxis Direction2d.reverse) 
+                |> (\poa -> 
+                    Shared.angleDiff bounce.point poa neighbor
+                        |> Maybe.withDefault (Angle.degrees 0)
+                        |> Shared.within180
+                        |> (\angle ->  Arc2d.sweptAround bounce.point angle poa)
+                )
+                
+    in
+    bouncesWithNeighborPoints ray 
+        |> List.map (\(prev, bounce, next) -> ( mkWedge bounce prev, bounce, mkWedge bounce next )) 
+
+type alias AngleWedge = ( Angle, Arc )
+
+
+angleColor : Angle -> Color
+angleColor angle = 
+    Color.interpolate Color.RGB
+        (Shared.colors.blue1 |> Color.hexToColor |> Result.withDefault Color.blue)
+        (Shared.colors.red1 |> Color.hexToColor |> Result.withDefault Color.green)
+        (angle 
+            |> Quantity.abs 
+            |> Quantity.unwrap
+            |> (\a -> a / (Quantity.unwrap (Angle.degrees 90)))
+        )
+
+
+angleArcRadius = Length.meters 0.25
+arcLabelDistanceScale = 1.65
+
+
+triangleForArc arc = 
+    Triangle2d.from (Arc2d.centerPoint arc)
+        (Arc2d.startPoint arc) 
+        (Arc2d.endPoint arc)
 
 
 interpolateFrom : Sightray -> Sightray -> Float -> Sightray
@@ -341,30 +394,103 @@ bounceMirrorAcross axis =
 
 view : Sightray -> Svg msg
 view = 
-    viewWithAttrs lineAttrsDefault
+    viewWithOptions defaultOptions
 
-viewWithAttrs attrs ray = 
-    ray 
-        |> polyline 
-        |> (\pl -> 
-            Svg.g [] 
-                [ 
-                    -- Svg.polyline2d [ Attr.stroke "white", Attr.strokeWidth "0.1", Attr.fill "none" ] pl
-                -- , 
-                Svg.polyline2d attrs pl
-                ]
+type alias ViewOptions msg = 
+    { attributes : List (Svg.Attribute msg)
+    , showAngles : Bool 
+    }
+
+defaultOptions : ViewOptions msg 
+defaultOptions = 
+    { attributes = [] 
+    , showAngles = True 
+    }
+
+viewWithOptions : ViewOptions msg -> Sightray -> Svg msg
+viewWithOptions options ray =
+    Svg.g 
+        []
+        [ ray |> polyline |> Svg.polyline2d (lineAttrsDefault ++ options.attributes)
+        , if options.showAngles then viewAngles ray else Shared.svgEmpty
+        ]
+
+viewAngles ray = 
+    angleArcs ray
+        |> List.map (\(wedge1, bounce, wedge2) -> 
+            [ viewWedge bounce wedge1, viewWedge bounce wedge2 ]
         )
+        |> List.concat
+        |> Svg.g []
 
-lineAttrsDefault = lineAttrs "black" "0.01"
 
-lineAttrs : String -> String -> List (Svg.Attribute msg)
-lineAttrs color width = 
+viewWedge : MirrorBounce -> Arc -> Svg msg
+viewWedge bounce arc =
+    let 
+        angle = Arc2d.sweptAngle arc 
+        color = angleColor angle |> Color.colorToHex
+        arcStart = Arc2d.startPoint arc
+    in
+    Svg.g 
+        []
+        [ Svg.arc2d 
+            [ Attr.fill color
+            , Attr.stroke "black" --fill
+            , Attr.strokeWidth "0.005"
+            -- , Attr.opacity "0.33"
+            ] 
+            arc
+        , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
+        , viewLabel 
+            (LineSegment2d.from (Arc2d.centerPoint arc) (Arc2d.midpoint arc)
+                |> (\l -> LineSegment2d.interpolate l 0.7)
+            )
+            (Vector2d.rTheta (Length.meters 0.25) 
+                (Direction2d.perpendicularTo (Axis2d.direction (Axis2d.reverse bounce.axis))
+                    |> Direction2d.toAngle
+                )
+            )
+            (angle
+                |> Quantity.abs 
+                |> Angle.inDegrees 
+                |> round 
+                |> String.fromInt 
+                |> (\s -> s ++ "º")
+            )
+        ]
+
+viewLabel startPoint vector text = 
+    let 
+        endPoint = Point2d.translateBy vector startPoint 
+        textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
+    in
+    Svg.g []
+        [ Svg.circle2d [ Attr.fill "black" ]
+            (Circle2d.atPoint startPoint (Length.meters 0.02))
+        , Svg.lineSegment2d 
+            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth "0.01" ]
+            (LineSegment2d.from startPoint endPoint)
+        , Svg.text_ 
+            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
+            , Attr.x (-0.5 * 0.25 |> String.fromFloat) -- TODO what are these numbers?
+            , Attr.fill "black"
+            -- , Attr.opacity "0"
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ Svg.text text ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
+        ]
+
+lineAttrsDefault : List (Svg.Attribute msg)
+lineAttrsDefault = 
     [ Attr.fill "none" 
-    , Attr.stroke color
-    , Attr.strokeWidth width
+    , Attr.stroke "black"
+    , Attr.strokeWidth "0.01"
     , Attr.strokeDasharray "0.05"
     , Attr.strokeDashoffset "0.0"
     ]
+
 
 viewSamplePoints : Sightray -> Svg msg 
 viewSamplePoints ray = 

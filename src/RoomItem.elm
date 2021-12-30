@@ -76,6 +76,7 @@ interpolateFrom item1 item2 pct =
         |> updatePos (\p1 -> Shared.interpolatePointFrom p1 item2.pos pct)
         |> setEmoji (if pct < 0.5 then item1.emoji else item2.emoji)
 
+
 -- TODO make typesafe
 emojis = 
     { roundTree = "🌳"

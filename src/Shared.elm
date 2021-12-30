@@ -1,6 +1,7 @@
 module Shared exposing (..)
 
 import Angle exposing (Angle)
+import Arc2d exposing (Arc2d)
 import Axis2d exposing (Axis2d)
 import Circle2d exposing (Circle2d)
 import Color
@@ -14,7 +15,7 @@ import Pixels exposing (Pixels, pixels)
 import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
-import Quantity
+import Quantity exposing (Quantity)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Vector2d
@@ -23,6 +24,7 @@ import Rectangle2d exposing (Rectangle2d)
 -- Coordinate systems --
 
 -- Geometry types with the units and coords type parameters applied --
+type alias Arc = Arc2d Meters SceneCoords
 type alias Axis = Axis2d Meters SceneCoords
 type alias Circle = Circle2d Meters SceneCoords
 type alias Direction = Direction2d SceneCoords
@@ -52,6 +54,7 @@ svgFrame =
                 (pixels <| -constants.containerWidth / 2.0)
                 (pixels <| constants.containerHeight / 2.0))
         |> Frame2d.reverseY
+        
 
 playerFrame : Point -> Angle -> Frame2d Meters SceneCoords { defines : SceneCoords }
 playerFrame viewerPos viewerAngle = 
@@ -197,11 +200,6 @@ interpReflectDirection axis pct dir =
             |> Direction2d.fromAngle
 
 
-type alias SuccessAnimation = 
-    { step : Int 
-    , transitionPct : Maybe Float
-    }
-
 
 colors = 
     { blue1 = "#2c6fef"
@@ -248,3 +246,38 @@ projectedSightline viewerPos viewerDirection sightDistance =
         (Vector2d.withLength sightDistance 
             (Frame2d.yDirection (playerFrame viewerPos 
                 (Direction2d.toAngle viewerDirection))))
+
+
+within180 : Angle -> Angle 
+within180 angle = 
+    let 
+        outOfRange = 
+            (angle |> Quantity.greaterThan (Angle.degrees 180))
+                || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
+
+        fixPozi a = 
+            if a |> Quantity.greaterThan (Angle.degrees 180) then 
+                a |> Quantity.minus (Angle.degrees 360)
+            else 
+                a
+
+        fixNegi a = 
+            if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
+                a |> Quantity.plus (Angle.degrees 360)
+            else 
+                a
+    in
+        angle 
+            |> fixPozi
+            |> fixNegi
+
+takeMin : (a -> Quantity number c) -> a -> a -> a
+takeMin quantify p q = 
+    case Quantity.compare (quantify p) (quantify q) of
+        GT -> q
+        _ -> p
+
+debugCircle : String -> Point -> Svg msg
+debugCircle color pos = 
+    Svg.circle2d [ Attr.fill color ]
+        (Circle2d.atPoint pos (Length.meters 0.125))
