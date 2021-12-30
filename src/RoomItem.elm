@@ -107,7 +107,7 @@ view inFocus item =
                 -- TypedSvg.Attributes.fill <| Paint Color.white
                 -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
             Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
-            , Attr.stroke <| if inFocus then Shared.colors.yellow1 else "#f0f0f0"
+            , Attr.stroke <| "lightGrey" --if inFocus then Shared.colors.yellow1 else "#f0f0f0"
             , Attr.fill <| "white" --if inFocus then Shared.colors.yellow1 else "white"
             -- , Attr.opacity <| if inFocus then "0.5" else "1"
             ]

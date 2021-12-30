@@ -29,6 +29,7 @@ import Vector2d
 import Arc2d exposing (Arc2d)
 import String exposing (lines)
 import Arc2d exposing (startPoint)
+import LineSegment2d exposing (endpoints)
 
 type alias Sightray = 
     { startPos : Point
@@ -242,13 +243,14 @@ projectionsAndReflections : Sightray -> (List MirrorBounce, List MirrorBounce)
 projectionsAndReflections ray = 
     let dropNeighborInfo = List.map (\(_, bounce, _) -> bounce) in
     bouncesWithNeighborPoints ray
-        |> List.span (\(prev, bounce, next) -> 
-            Maybe.map2 (Direction2d.equalWithin (Angle.degrees 0.001))
-                (Direction2d.from prev bounce.point)
-                (Direction2d.from bounce.point next)
-                |> Maybe.withDefault False
-        )
+        |> List.span isProjection
         |> Tuple.mapBoth dropNeighborInfo dropNeighborInfo
+
+isProjection (prev, bounce, next) =
+    Maybe.map2 (Direction2d.equalWithin (Angle.degrees 0.001))
+        (Direction2d.from prev bounce.point)
+        (Direction2d.from bounce.point next)
+        |> Maybe.withDefault False
 
 projections = 
     projectionsAndReflections >> Tuple.first
@@ -317,7 +319,7 @@ angleArcs ray =
                 |> (\poa -> 
                     Shared.angleDiff bounce.point poa neighbor
                         |> Maybe.withDefault (Angle.degrees 0)
-                        |> Shared.within180
+                        |> Shared.normalizeAngle
                         |> (\angle ->  Arc2d.sweptAround bounce.point angle poa)
                 )
                 
@@ -331,8 +333,8 @@ type alias AngleWedge = ( Angle, Arc )
 angleColor : Angle -> Color
 angleColor angle = 
     Color.interpolate Color.RGB
-        (Shared.colors.blue1 |> Color.hexToColor |> Result.withDefault Color.blue)
-        (Shared.colors.red1 |> Color.hexToColor |> Result.withDefault Color.green)
+        (Shared.colors.green1 |> Color.hexToColor |> Result.withDefault Color.green)
+        (Shared.colors.yellow1 |> Color.hexToColor |> Result.withDefault Color.blue)
         (angle 
             |> Quantity.abs 
             |> Quantity.unwrap
@@ -392,40 +394,100 @@ bounceMirrorAcross axis =
 
 -- VIEW 
 
-view : Sightray -> Svg msg
-view = 
-    viewWithOptions defaultOptions
-
 type alias ViewOptions msg = 
     { attributes : List (Svg.Attribute msg)
-    , showAngles : Bool 
+    , projectionAttributes : List (Svg.Attribute msg)
+    , angleLabels : AngleLabels
+    , zoomScale : Float
     }
+
+type AngleLabels 
+    = NoAngles 
+    | AllAngles 
+    | OnlyReflectionAngles
 
 defaultOptions : ViewOptions msg 
 defaultOptions = 
     { attributes = [] 
-    , showAngles = True 
+    , projectionAttributes = []
+    , angleLabels = AllAngles
+    , zoomScale = 1
     }
+
+view : Sightray -> Svg msg
+view = 
+    viewWithOptions defaultOptions
 
 viewWithOptions : ViewOptions msg -> Sightray -> Svg msg
 viewWithOptions options ray =
-    Svg.g 
-        []
-        [ ray |> polyline |> Svg.polyline2d (lineAttrsDefault ++ options.attributes)
-        , if options.showAngles then viewAngles ray else Shared.svgEmpty
+    let (projs, refs) = projectionsAndReflections ray in
+    Svg.g []
+        [ projs
+            |> List.map .point 
+            |> (\vs -> 
+                ray.startPos :: vs 
+                    ++ (refs 
+                        |> List.head 
+                        |> Maybe.map .point 
+                        |> Maybe.withDefault (endPos ray)
+                        |> (\p -> [p])
+                    )
+            )
+            |> Polyline2d.fromVertices
+            |> Svg.polyline2d 
+                (lineAttrsDefault options.zoomScale ++ options.attributes ++ options.projectionAttributes)
+        , refs 
+            |> List.map .point 
+            |> (\vs -> vs ++ [endPos ray])
+            |> Polyline2d.fromVertices
+            |> Svg.polyline2d (lineAttrsDefault options.zoomScale ++ options.attributes)
+        , case options.angleLabels of 
+            AllAngles -> viewAngles ray
+            -- OnlyReflectionAngles -> viewAngles ray -- TODO
+            _ -> Shared.svgEmpty
         ]
+
+
+beam : Room.Model -> LineSegment -> List Sightray
+beam room sightline = 
+    let 
+        (sightStart, sightEnd) = LineSegment2d.endpoints sightline
+        ray angle =
+            Direction2d.from sightStart sightEnd |> Maybe.map (\sightDirection ->
+                Direction2d.rotateBy angle sightDirection
+                    |> (\dir -> 
+                        Shared.projectedSightline sightStart dir 
+                            (LineSegment2d.length sightline)
+                    )
+                    |> fromRoomAndProjectedPath room
+            )
+    in
+    List.initialize 10 (\i -> (toFloat i - 5) * 0.3) -- TODO compute the 0.3 based on sightDistance
+        |> List.map Angle.degrees
+        |> List.map ray
+        |> Maybe.values
+
+
+lineAttrsDefault : Float -> List (Svg.Attribute msg)
+lineAttrsDefault zoomScale = 
+    [ Attr.fill "none" 
+    , Attr.stroke "black"
+    , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.01
+    , Attr.strokeDasharray <| Shared.floatAttribute zoomScale 0.05
+    , Attr.strokeDashoffset <| Shared.floatAttribute zoomScale 0.0
+    ]
 
 viewAngles ray = 
     angleArcs ray
-        |> List.map (\(wedge1, bounce, wedge2) -> 
-            [ viewWedge bounce wedge1, viewWedge bounce wedge2 ]
+        |> List.map (\(arc1, bounce, arc2) -> 
+            [ viewAngle bounce arc1, viewAngle bounce arc2 ]
         )
         |> List.concat
         |> Svg.g []
 
 
-viewWedge : MirrorBounce -> Arc -> Svg msg
-viewWedge bounce arc =
+viewAngle : MirrorBounce -> Arc -> Svg msg
+viewAngle bounce arc =
     let 
         angle = Arc2d.sweptAngle arc 
         color = angleColor angle |> Color.colorToHex
@@ -459,38 +521,29 @@ viewWedge bounce arc =
             )
         ]
 
+viewLabel : Point -> Vector -> String -> Svg msg
 viewLabel startPoint vector text = 
     let 
         endPoint = Point2d.translateBy vector startPoint 
         textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
+        fontSize = 0.125
     in
     Svg.g []
         [ Svg.circle2d [ Attr.fill "black" ]
             (Circle2d.atPoint startPoint (Length.meters 0.02))
         , Svg.lineSegment2d 
-            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth "0.01" ]
+            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth (Shared.floatAttribute 1 0.01) ]
             (LineSegment2d.from startPoint endPoint)
         , Svg.text_ 
-            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
-            , Attr.x (-0.5 * 0.25 |> String.fromFloat) -- TODO what are these numbers?
+            [ Attr.fontSize <| Shared.floatAttribute 1 fontSize
+            , Attr.x <| Shared.floatAttribute 1 (-0.5 * fontSize)
             , Attr.fill "black"
-            -- , Attr.opacity "0"
             , Attr.alignmentBaseline "central"
             ] 
             [ Svg.text text ]
             |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
             |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
         ]
-
-lineAttrsDefault : List (Svg.Attribute msg)
-lineAttrsDefault = 
-    [ Attr.fill "none" 
-    , Attr.stroke "black"
-    , Attr.strokeWidth "0.01"
-    , Attr.strokeDasharray "0.05"
-    , Attr.strokeDashoffset "0.0"
-    ]
-
 
 viewSamplePoints : Sightray -> Svg msg 
 viewSamplePoints ray = 

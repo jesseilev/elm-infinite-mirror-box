@@ -94,7 +94,7 @@ type alias SuccessAnimation =
 init : () -> ( Model, Cmd Msg )
 init _ =
     { room = Room.init1
-    , sightDirection = Direction2d.fromAngle (Angle.degrees -15)
+    , sightDirection = Direction2d.fromAngle (Angle.degrees 75)
     , sightDistance = Length.meters 8.0
     , mouseDragPos = Nothing
     , dragging = False
@@ -363,9 +363,7 @@ instructionsText sightDistance =
 svgContainer : Model -> Html Msg
 svgContainer model =
     Html.div 
-        [ Pointer.onDown (\_ -> 
-            if Maybe.isJust (successAnimation model) then NoOp else DragStart)
-        , Pointer.onUp (\_ -> 
+        [ Pointer.onUp (\_ -> 
             if Maybe.isJust (successAnimation model) then StepAnimation 1 else DragStop)
         , Pointer.onLeave (\_ -> DragStop)
         , Pointer.onMove (\event -> 
@@ -373,7 +371,7 @@ svgContainer model =
                 MouseDragAt (mouseToSceneCoords (currentZoomScale model) event.pointer.offsetPos)
             else 
                 NoOp)
-        , Html.Attributes.style "cursor" (if model.dragging then "grabbing" else "grab")
+        -- , Html.Attributes.style "cursor" (if model.dragging then "grabbing" else "grab")
         -- , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
         -- , Mouse.onClick (\event -> if model.dragging then NoOp else MouseClickAt Point2d.origin)
         ]
@@ -391,20 +389,165 @@ svgContainer model =
 
 viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
-    let 
-        ray = rayNormal model 
-    in
     Svg.g []
-        [ Sightray.viewWithOptions { showAngles = model.dragging, attributes = [] } ray
-        , Room.view model.room
-        -- , model.mouseDragPos |> Maybe.map (Shared.debugCircle "red") |> Maybe.withDefault Shared.svgEmpty
-        -- , rayEndpointLabel ray
-        -- , Shared.viewFrame "red" 
-        --     (Shared.playerFrame model.room.playerItem.pos (Direction2d.toAngle model.sightDirection))
-
+        [ viewBeam model
+        , Room.view (currentZoomScale model) model.room
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame
+
+
+
+
+rayPairForAnimation : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
+rayPairForAnimation animation ray = 
+    ray 
+        |> Sightray.uncurledSeries
+        |> Array.fromList
+        |> (\rs -> 
+            ( Array.get animation.step rs |> Maybe.withDefault ray
+            , Array.get (animation.step + 1) rs
+            )
+        )
+
+viewDiagramSuccess : Model -> SuccessAnimation -> Svg Msg
+viewDiagramSuccess model animation = 
+    let 
+        initialRay = 
+            rayNormal model
+
+        (currentRay, nextRayM) = 
+            transitionRay animation (rayNormal model)
+
+        rooms = 
+            currentRay |> Sightray.hallway model.room 
+                |> Shared.debugLogF "rooms length" List.length
+
+        farthestRoom = 
+            rooms |> List.last |> Maybe.withDefault model.room
+
+        nextRoomM = 
+            currentRay
+                |> Sightray.uncurl 
+                |> Maybe.map (Sightray.hallway model.room)
+                |> Maybe.andThen List.last
+
+        transitionRoomM = 
+            Maybe.map2 (Room.interpolateFrom farthestRoom)
+                nextRoomM
+                animation.transitionPct
+
+        centroid = 
+            rooms ++ (transitionRoomM |> Maybe.toList)
+                |> List.map (.wallShape >> Polygon2d.vertices)
+                |> List.concat
+                |> Polygon2d.convexHull
+                |> Polygon2d.centroid
+                |> Maybe.withDefault initialRay.startPos
+    in
+    Svg.g [ ] 
+        [ viewBeamSuccess animation model
+        , rooms ++ (transitionRoomM |> Maybe.toList)
+            |> List.map (Room.view (currentZoomScale model))
+            |> Svg.g [ Attr.opacity "0.4" ]
+        , Room.view (currentZoomScale model) model.room
+        ]
+        |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
+        |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
+        |> Svg.relativeTo Shared.svgFrame
+
+viewBeam : Model -> Svg Msg 
+viewBeam model = 
+    let 
+        ray = 
+            rayNormal model
+        options showAngles attrs = 
+            { angleLabels = if showAngles then Sightray.AllAngles else Sightray.NoAngles 
+            , attributes = attrs
+            , projectionAttributes = []
+            , zoomScale = currentZoomScale model
+            }
+    in 
+    Svg.g 
+        [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
+        , Pointer.onDown (\_ -> 
+            if Maybe.isNothing (successAnimation model) then DragStart else NoOp
+        )
+        ]
+        (List.concat
+            [ [ ray |> Sightray.viewWithOptions (options False 
+                [ Attr.opacity "0"
+                , Attr.strokeDasharray "0"
+                , Attr.strokeWidth "0.25"
+                ])
+              ]
+            , Sightray.beam model.room (projectedSightline model) 
+                |> List.indexedMap (\i -> 
+                    Sightray.viewWithOptions (options False 
+                        [ Attr.stroke Shared.colors.yellow1 
+                        , Attr.strokeDashoffset 
+                            <| Shared.floatAttribute 1 (toFloat i * 0.07 + 0.02)
+                        ]
+                    )
+                )
+            , [ ray |> Sightray.viewWithOptions (options model.dragging [ Attr.opacity "0"]) ]
+            ]
+        )
+
+transitionRay : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
+transitionRay animation curledRay = 
+    rayPairForAnimation animation curledRay 
+        |> (\(uncurledRay, nextUncurledRayM) -> 
+            ( uncurledRay
+            , Maybe.map2 (Sightray.interpolateFrom uncurledRay) 
+                nextUncurledRayM 
+                animation.transitionPct
+            )
+        )
+
+viewBeamSuccess : SuccessAnimation -> Model -> Svg Msg 
+viewBeamSuccess animation model = 
+    let 
+        ray = 
+            rayNormal model
+        options attrs = 
+            { angleLabels = Sightray.NoAngles 
+            , attributes = attrs
+            , projectionAttributes = []
+            , zoomScale = currentZoomScale model
+            }
+    in 
+    Svg.g 
+        [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
+        , Pointer.onDown (\_ -> 
+            if Maybe.isNothing (successAnimation model) then DragStart else NoOp
+        )
+        ]
+        (List.concat
+            [ [ ray |> Sightray.viewWithOptions (options 
+                [ Attr.opacity "0"
+                , Attr.strokeDasharray "0"
+                , Attr.strokeWidth "0.25"
+                ])
+              ]
+            , Sightray.beam model.room (projectedSightline model) 
+                |> List.map (transitionRay animation)
+                |> List.map (\(r, rM) -> Maybe.withDefault r rM)
+                |> List.indexedMap (\i -> 
+                    Sightray.viewWithOptions (options 
+                        [ Attr.stroke Shared.colors.yellow1 
+                        , Attr.strokeDashoffset 
+                            <| Shared.floatAttribute (currentZoomScale model) (toFloat i * 0.07 + 0.02)
+                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 0.005
+                        ]
+                    )
+                )
+            , [ ray |> Sightray.viewWithOptions (options [ Attr.opacity "0"]) ]
+            ]
+        )
+
+projectedSightline model = 
+    Shared.projectedSightline model.room.playerItem.pos model.sightDirection model.sightDistance
 
 rayEndpointLabel ray = 
     let 
@@ -433,87 +576,6 @@ rayEndpointLabel ray =
             |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
             |> Svg.translateBy (Vector2d.from Point2d.origin center)
         ]
-
-viewDiagramSuccess : Model -> SuccessAnimation -> Svg Msg
-viewDiagramSuccess model animation = 
-    let 
-        (currentRay, nextRayM) = 
-            rayNormal model |> (\ray ->
-                ray 
-                    |> Sightray.uncurledSeries
-                    |> Array.fromList
-                    |> (\rs -> 
-                        ( Array.get animation.step rs |> Maybe.withDefault ray
-                        , Array.get (animation.step + 1) rs
-                        )
-                    )
-            )
-
-        rooms = 
-            currentRay |> Sightray.hallway model.room
-
-        farthestRoom = 
-            rooms |> List.last |> Maybe.withDefault model.room
-
-        nextRoomM = 
-            currentRay
-                |> Sightray.uncurl 
-                |> Maybe.map (Sightray.hallway model.room)
-                |> Maybe.andThen List.last
-
-
-        transitionRoomM = 
-            Maybe.map2 (Room.interpolateFrom farthestRoom)
-                nextRoomM
-                animation.transitionPct
-
-        centroid = 
-            transitionRoomM
-                |> Maybe.map (\tr -> tr :: rooms)
-                |> Maybe.withDefault rooms
-                |> List.map (.wallShape >> Polygon2d.vertices)
-                |> List.concat
-                |> Polygon2d.convexHull
-                |> Polygon2d.centroid
-                |> Maybe.withDefault currentRay.startPos
-
-        viewSuccessRay sr = 
-            Svg.g []
-                [ Sightray.view sr
-                , Svg.lineSegment2d 
-                    (Sightray.lineAttrsDefault ++ [ Attr.stroke Shared.colors.yellow1, Attr.strokeWidth "0.04" ])
-                    (LineSegment2d.from model.room.playerItem.pos sr.startPos)
-                ]
-
-        transitionRayM = 
-            Maybe.map2 (\nextRay pct -> Sightray.interpolateFrom currentRay nextRay pct)
-                nextRayM
-                animation.transitionPct
-
-        -- transitionRay =
-        --     Sightray.tail currentRay 
-        --         |> Maybe.map (\(nextBounce, tail) -> 
-        --             Sightray.interpReflect nextBounce.axis 
-        --                 (animation.transitionPct |> Maybe.withDefault 0) 
-        --                 tail
-        --         )
-
-    in
-    Svg.g [ ] 
-        [ transitionRayM |> Maybe.withDefault currentRay |> viewSuccessRay 
-        , rooms
-            |> List.map Room.view
-            |> Svg.g [ Attr.opacity "0.5" ]
-        , transitionRoomM 
-            |> Maybe.map Room.view
-            |> Maybe.withDefault Shared.svgEmpty
-        , Room.view model.room
-        ]
-        |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
-        |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
-        |> Svg.relativeTo Shared.svgFrame
-
-
 
 -- Frame, Units, Conversions --
 

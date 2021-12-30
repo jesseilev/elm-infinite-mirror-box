@@ -18,7 +18,7 @@ import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import Vector2d
+import Vector2d exposing (Vector2d)
 import Rectangle2d exposing (Rectangle2d)
 
 -- Coordinate systems --
@@ -32,6 +32,7 @@ type alias LineSegment = LineSegment2d Meters SceneCoords
 type alias Point = Point2d Meters SceneCoords
 type alias Polygon = Polygon2d Meters SceneCoords
 type alias Polyline = Polyline2d Meters SceneCoords
+type alias Vector = Vector2d Meters SceneCoords
 
 
 {- origin point in the center of the frame, x -> right, y -> up -}
@@ -207,6 +208,7 @@ colors =
     , red1 = "#e1503c"
     , green1 = "#179e7e"
     , darkBackground = Color.rgb 0.6 0.6 0.6
+    , roomBackground = "none"
     }
 
 
@@ -244,32 +246,38 @@ projectedSightline : Point -> Direction -> Length -> LineSegment
 projectedSightline viewerPos viewerDirection sightDistance =
     LineSegment2d.fromPointAndVector viewerPos
         (Vector2d.withLength sightDistance 
-            (Frame2d.yDirection (playerFrame viewerPos 
+            (Frame2d.xDirection (playerFrame viewerPos 
                 (Direction2d.toAngle viewerDirection))))
 
-
-within180 : Angle -> Angle 
-within180 angle = 
+{-
+Normalizes an angle to the range of -180 thru 180
+This ensures the angle doesn't go the "wrong way" around the circle, ie the long way around
+normalizeAngle (Angle.degrees 181) == Angle.degrees -179
+normalizeAngle (Angle.degrees -181) == Angle.degrees 179
+TODO -- only works for inputs in the range -360 thru 360, could fix this with modular math
+-}
+normalizeAngle : Angle -> Angle 
+normalizeAngle angle = 
     let 
         outOfRange = 
             (angle |> Quantity.greaterThan (Angle.degrees 180))
                 || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
 
-        fixPozi a = 
+        normalizeTooBig a = 
             if a |> Quantity.greaterThan (Angle.degrees 180) then 
                 a |> Quantity.minus (Angle.degrees 360)
             else 
                 a
 
-        fixNegi a = 
+        normalizeTooNegative a = 
             if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
                 a |> Quantity.plus (Angle.degrees 360)
             else 
                 a
     in
         angle 
-            |> fixPozi
-            |> fixNegi
+            |> normalizeTooBig
+            |> normalizeTooNegative
 
 takeMin : (a -> Quantity number c) -> a -> a -> a
 takeMin quantify p q = 
@@ -281,3 +289,7 @@ debugCircle : String -> Point -> Svg msg
 debugCircle color pos = 
     Svg.circle2d [ Attr.fill color ]
         (Circle2d.atPoint pos (Length.meters 0.125))
+
+
+floatAttribute zoomScale f = 
+    f / zoomScale |> String.fromFloat

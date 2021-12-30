@@ -67,11 +67,11 @@ init1 =
     , playerItem = RoomItem (Point2d.meters 0.35 -0.65) RoomItem.emojis.cat
     , targetItem = RoomItem (Point2d.meters 1.5 0.2) RoomItem.emojis.parrot
     , trees =
-        []
-        -- [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
-        -- , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
-        -- , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant
-        -- ]
+        -- []
+        [ RoomItem (Point2d.meters -0.5 0.3) RoomItem.emojis.plant
+        , RoomItem (Point2d.meters 0.2 0.9) RoomItem.emojis.plant
+        , RoomItem (Point2d.meters 1.1 -0.4) RoomItem.emojis.plant
+        ]
     }
 
 -- TODO just make these things actual items
@@ -104,7 +104,7 @@ interpReflect axis pct model =
 
 mirrorAcross : Axis -> Model -> Model 
 mirrorAcross axis = 
-    interpReflect axis 1
+    interpReflect axis 1 -- TODO dont use the interp
 
 interpolateFrom : Model -> Model -> Float -> Model
 interpolateFrom r1 r2 pct = 
@@ -120,8 +120,8 @@ allItems model =
 
 -- VIEW
 
-view : Model -> Svg msg 
-view model = 
+view : Float -> Model -> Svg msg 
+view zoomScale model = 
     let 
         viewRoomItem flag item = 
             RoomItem.init item.pos item.emoji
@@ -130,9 +130,10 @@ view model =
         roomSvg =
             Svg.g [] <| 
                 [ Svg.polygon2d 
-                    [ Attr.fill "none"
-                    , Attr.strokeWidth "0.04"
-                    , Attr.stroke "black"
+                    [ Attr.fill Shared.colors.roomBackground
+                    , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.03
+                    , Attr.stroke "grey"
+                    -- , Attr.opacity "0.5"
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
                 , viewRoomItem False model.playerItem
