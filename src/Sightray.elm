@@ -452,7 +452,7 @@ beam : Room.Model -> LineSegment -> List Sightray
 beam room sightline = 
     let 
         (sightStart, sightEnd) = LineSegment2d.endpoints sightline
-        ray angle =
+        beamRay angle =
             Direction2d.from sightStart sightEnd |> Maybe.map (\sightDirection ->
                 Direction2d.rotateBy angle sightDirection
                     |> (\dir -> 
@@ -461,10 +461,19 @@ beam room sightline =
                     )
                     |> fromRoomAndProjectedPath room
             )
+        
+        numRays = 10
+
+        angleIncrement =  
+            let 
+                sAdjacent = LineSegment2d.length sightline |> Quantity.unwrap
+                sOpposite = RoomItem.radius |> Quantity.unwrap
+            in
+            atan (sOpposite / sAdjacent) / (toFloat numRays * 0.5)
     in
-    List.initialize 10 (\i -> (toFloat i - 5) * 0.3) -- TODO compute the 0.3 based on sightDistance
-        |> List.map Angle.degrees
-        |> List.map ray
+    List.initialize numRays (\i -> (toFloat i - (toFloat numRays * 0.5)) * angleIncrement)
+        |> List.map Angle.radians
+        |> List.map beamRay
         |> Maybe.values
 
 
@@ -473,7 +482,7 @@ lineAttrsDefault zoomScale =
     [ Attr.fill "none" 
     , Attr.stroke "black"
     , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.01
-    , Attr.strokeDasharray <| Shared.floatAttribute zoomScale 0.05
+    , Attr.strokeDasharray <| Shared.floatAttribute zoomScale 0.1
     , Attr.strokeDashoffset <| Shared.floatAttribute zoomScale 0.0
     ]
 

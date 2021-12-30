@@ -57,6 +57,7 @@ import Sightray exposing (Sightray)
 import Circle2d exposing (centerPoint)
 import TypedSvg.Types exposing (YesNo(..))
 import TypedSvg.Attributes exposing (direction)
+import Ease
 
 main = 
     Browser.element
@@ -117,11 +118,11 @@ currentZoomScale model =
         zoomScaleForStep s = toFloat (s + 1) ^ -0.7 
         animation = successAnimation model
         step = animation |> Maybe.map .step |> Maybe.withDefault 0
-        transitionPct = animation |> Maybe.andThen .transitionPct |> Maybe.withDefault 0
+        transitionPct = animation |> Maybe.andThen .transitionPct |> Maybe.withDefault 0 |> pctForRoom
     in
     Float.interpolateFrom (zoomScaleForStep step) 
         (zoomScaleForStep (step + 1))
-        transitionPct 
+        (transitionPct) 
 
 rayNormal : Model -> Sightray
 rayNormal model =
@@ -198,11 +199,11 @@ update msg model =
             model |> updateSuccessAnimation (\ani -> 
                 case ani.transitionPct of 
                     Nothing -> ani
-                    Just pct -> pct + 0.05 |> (\newPct -> 
+                    Just pct -> pct + 0.01 |> (\newPct -> 
                         if newPct < 1.0 then 
                             { ani | transitionPct = Just newPct }
                         else 
-                            { ani | transitionPct = Nothing, step = ani.step + 1 }
+                            { ani | step = ani.step + 1, transitionPct = Just 0 }
                         )
             )
                 |> noCmds
@@ -237,13 +238,10 @@ updatePhotoAttempt model =
             Sightray.endItem ray == Just (Room.targetItem model.room)
                 && closeEnough (Sightray.length ray) model.sightDistance
 
-        
-
-
         newPhotoAttempt = 
             case (model.photoAttempt, targetHit) of 
                 (Nothing, True) -> 
-                    Just <| PhotoSuccess (SuccessAnimation 0 Nothing)
+                    Just <| PhotoSuccess (SuccessAnimation 0 (Just 0))
                 -- (Nothing, Just False) ->
                 --     Just <| PhotoFail (WrongItem itemHit)
                 -- (Nothing, Nothing) ->
@@ -390,13 +388,11 @@ svgContainer model =
 viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
     Svg.g []
-        [ viewBeam model
+        [ viewBeam (successAnimation model) model
         , Room.view (currentZoomScale model) model.room
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame
-
-
 
 
 rayPairForAnimation : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
@@ -435,7 +431,7 @@ viewDiagramSuccess model animation =
         transitionRoomM = 
             Maybe.map2 (Room.interpolateFrom farthestRoom)
                 nextRoomM
-                animation.transitionPct
+                (animation.transitionPct |> Maybe.map pctForRoom)
 
         centroid = 
             rooms ++ (transitionRoomM |> Maybe.toList)
@@ -446,7 +442,7 @@ viewDiagramSuccess model animation =
                 |> Maybe.withDefault initialRay.startPos
     in
     Svg.g [ ] 
-        [ viewBeamSuccess animation model
+        [ viewBeam (Just animation) model
         , rooms ++ (transitionRoomM |> Maybe.toList)
             |> List.map (Room.view (currentZoomScale model))
             |> Svg.g [ Attr.opacity "0.4" ]
@@ -456,41 +452,62 @@ viewDiagramSuccess model animation =
         |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
         |> Svg.relativeTo Shared.svgFrame
 
-viewBeam : Model -> Svg Msg 
-viewBeam model = 
+pctForRoom = 
+    clamp 0 0.5 >> (\n -> n * 2) >> Ease.inOutQuad
+
+pctForRay = 
+    clamp 0.5 1 >> (\x -> (x * 2) - 1) >> Ease.inOutQuad
+
+viewBeam : Maybe SuccessAnimation -> Model -> Svg Msg 
+viewBeam animationM model = 
     let 
         ray = 
             rayNormal model
+
         options showAngles attrs = 
             { angleLabels = if showAngles then Sightray.AllAngles else Sightray.NoAngles 
             , attributes = attrs
             , projectionAttributes = []
             , zoomScale = currentZoomScale model
             }
+
+        gAttrs = 
+            if Maybe.isNothing animationM then 
+                [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
+                , Pointer.onDown (\_ -> if Maybe.isNothing animationM then DragStart else NoOp)
+                ]
+            else
+                []
+
+        transitionIfAnimating beamRay = 
+            animationM 
+                |> Maybe.map (\ani -> transitionRay ani beamRay)
+                |> Maybe.map (\(r, rM) -> Maybe.withDefault r rM)
+                |> Maybe.withDefault beamRay
     in 
-    Svg.g 
-        [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
-        , Pointer.onDown (\_ -> 
-            if Maybe.isNothing (successAnimation model) then DragStart else NoOp
-        )
-        ]
+    Svg.g gAttrs
         (List.concat
-            [ [ ray |> Sightray.viewWithOptions (options False 
-                [ Attr.opacity "0"
-                , Attr.strokeDasharray "0"
-                , Attr.strokeWidth "0.25"
-                ])
+            [ [ ray -- draw a thick invisible ray behind the others to detect the cursor consistently 
+                |> Sightray.viewWithOptions (options False 
+                    [ Attr.opacity "0", Attr.strokeDasharray "0", Attr.strokeWidth "0.25"]
+                )
               ]
-            , Sightray.beam model.room (projectedSightline model) 
+            , Sightray.beam model.room (projectedSightline model) -- the yellow beam rays
+                |> List.map transitionIfAnimating
                 |> List.indexedMap (\i -> 
                     Sightray.viewWithOptions (options False 
                         [ Attr.stroke Shared.colors.yellow1 
-                        , Attr.strokeDashoffset 
-                            <| Shared.floatAttribute 1 (toFloat i * 0.07 + 0.02)
+                        , Attr.strokeDashoffset <| Shared.floatAttribute 1 (toFloat i * 0.1)
+                        , Attr.strokeDasharray <| Shared.floatAttribute 1 
+                            (i |> modBy 3 |> toFloat |> ((*) 0.03) |> ((+) 0.05))
+                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 
+                            (0.005 * (if model.dragging then 2 else 1))
                         ]
                     )
                 )
-            , [ ray |> Sightray.viewWithOptions (options model.dragging [ Attr.opacity "0"]) ]
+            , [ ray -- the "true" ray, invisible but showing angles during mouse drag
+                |> Sightray.viewWithOptions (options model.dragging [ Attr.opacity "0"]) 
+              ]
             ]
         )
 
@@ -501,49 +518,8 @@ transitionRay animation curledRay =
             ( uncurledRay
             , Maybe.map2 (Sightray.interpolateFrom uncurledRay) 
                 nextUncurledRayM 
-                animation.transitionPct
+                (animation.transitionPct |> Maybe.map pctForRay)
             )
-        )
-
-viewBeamSuccess : SuccessAnimation -> Model -> Svg Msg 
-viewBeamSuccess animation model = 
-    let 
-        ray = 
-            rayNormal model
-        options attrs = 
-            { angleLabels = Sightray.NoAngles 
-            , attributes = attrs
-            , projectionAttributes = []
-            , zoomScale = currentZoomScale model
-            }
-    in 
-    Svg.g 
-        [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
-        , Pointer.onDown (\_ -> 
-            if Maybe.isNothing (successAnimation model) then DragStart else NoOp
-        )
-        ]
-        (List.concat
-            [ [ ray |> Sightray.viewWithOptions (options 
-                [ Attr.opacity "0"
-                , Attr.strokeDasharray "0"
-                , Attr.strokeWidth "0.25"
-                ])
-              ]
-            , Sightray.beam model.room (projectedSightline model) 
-                |> List.map (transitionRay animation)
-                |> List.map (\(r, rM) -> Maybe.withDefault r rM)
-                |> List.indexedMap (\i -> 
-                    Sightray.viewWithOptions (options 
-                        [ Attr.stroke Shared.colors.yellow1 
-                        , Attr.strokeDashoffset 
-                            <| Shared.floatAttribute (currentZoomScale model) (toFloat i * 0.07 + 0.02)
-                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 0.005
-                        ]
-                    )
-                )
-            , [ ray |> Sightray.viewWithOptions (options [ Attr.opacity "0"]) ]
-            ]
         )
 
 projectedSightline model = 
