@@ -34,8 +34,7 @@ import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
 import Quantity exposing (Quantity)
-import RayPath exposing (RayPath)
-import Room exposing (Model)
+import Room exposing (Room)
 import RoomItem exposing (RoomItem)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
@@ -60,17 +59,17 @@ import Ease
 -- MODEL --
 
 type alias Model = 
-    { room : Room.Model
+    { room : Room
     , sightDirection : Direction
     , sightDistance : Length
-    , mouseHoverArea : Maybe HoverArea
+    , mouseHoverArea : Maybe MouseHoverArea
     , mouseDragPos : Maybe Point
     , dragging : Bool
     , ticks : Int
     , photoAttempt : Maybe PhotoAttempt
     }
 
-type HoverArea 
+type MouseHoverArea
     = HoverRoom
     | HoverBeam
 
@@ -91,29 +90,29 @@ type alias SuccessAnimation =
 
 initLevel1 : Model 
 initLevel1 = 
-    init Room.initLevel1
+    init Room.level1
         (Direction2d.fromAngle (Angle.degrees 210))
         (Length.meters 3)
 
 initLevel2 : Model 
 initLevel2 = 
-    init Room.initLevel2 
+    init Room.level2 
         (Direction2d.fromAngle (Angle.degrees 130))
         (Length.meters 5)
 
 initLevel3 : Model
 initLevel3 =
-    init Room.initLevel3
+    init Room.level3
         (Direction2d.fromAngle (Angle.degrees 80))
         (Length.meters 8.0)
 
 initLevel4 : Model
 initLevel4 =
-    init Room.initLevel4
+    init Room.level4
         (Direction2d.fromAngle (Angle.degrees -133))
         (Length.meters 20.0)
 
-init : Room.Model -> Direction -> Length -> Model 
+init : Room -> Direction -> Length -> Model 
 init room sightDir sightDist = 
     { room = room 
     , sightDirection = sightDir 
@@ -192,7 +191,7 @@ type Msg
     | DragStart
     | DragStop
     | MouseClickAt Point
-    | MouseHoverOver (Maybe HoverArea)
+    | MouseHoverOver (Maybe MouseHoverArea)
     | AdjustZoom Float
     | StepAnimation
     | Tick

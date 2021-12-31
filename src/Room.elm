@@ -1,66 +1,47 @@
 module Room exposing 
-    ( Model
-    , initLevel1
-    , initLevel2
-    , initLevel3
-    , initLevel4
-    , allItems
+    ( allItems
+    , level1
+    , level2
+    , level3
+    , level4
+    , interpolateFrom
+    , mirrorAcross
     , playerItem
+    , Room
     , targetItem
     , view
-    , interpReflect
-    , mirrorAcross
-    , interpolateFrom
     )
 
-import Array
-import Angle exposing (Angle)
-import Axis2d
-import Circle2d
-import Color
-import Color.Convert as Color
-import Direction2d
+import Angle
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
-import LineSegment2d
-import List.Nonempty
 import Length exposing (Meters)
-import Maybe.Extra as Maybe
 import Quantity exposing (Quantity)
 import Pixels exposing (Pixels, pixels)
 import Point2d exposing (Point2d)
-import Polyline2d
 import Polygon2d
 import RoomItem exposing (RoomItem)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import TypedSvg.Attributes
 import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
-import Shared exposing
-    ( Axis
-    , Direction
-    , LineSegment
-    , Point 
-    , Polygon 
-    )
-import Vector2d
+import Shared exposing(Axis, Polygon)
 import Direction2d exposing (Direction2d)
 import Polyline2d exposing (Polyline2d)
-import RoomItem exposing (interpReflect)
 
 
-type alias NonemptyList a = List.Nonempty.Nonempty a
+-- Types --
 
-
-type alias Model = 
+type alias Room = 
     { wallShape : Polygon
     , playerItem : RoomItem
     , targetItem : RoomItem
     , trees : List RoomItem
     }
 
-initLevel1 : Model 
-initLevel1 = 
+ -- Constructors --
+
+level1 : Room 
+level1 = 
     { wallShape = 
         Polygon2d.singleLoop 
             [ Point2d.meters -2.0 -1.5
@@ -73,8 +54,8 @@ initLevel1 =
     , trees = []
     }
 
-initLevel2 : Model 
-initLevel2 =
+level2 : Room 
+level2 =
     { wallShape = 
         Polygon2d.singleLoop 
             [ Point2d.meters -1.75 -1.25
@@ -90,8 +71,8 @@ initLevel2 =
         ]
     }
 
-initLevel3 : Model 
-initLevel3 =
+level3 : Room 
+level3 =
     { wallShape = 
         Polygon2d.singleLoop 
             [ Point2d.meters -2.1 -2.0
@@ -108,8 +89,8 @@ initLevel3 =
         ]
     }
 
-initLevel4 : Model 
-initLevel4 =
+level4 : Room 
+level4 =
     { wallShape = 
         Polygon2d.singleLoop 
             [ Point2d.meters -2.0 -2.0
@@ -122,7 +103,10 @@ initLevel4 =
     , trees = []
     }
 
-playerItem : Model -> RoomItem 
+
+-- Properties -- 
+
+playerItem : Room -> RoomItem 
 playerItem = 
     .playerItem
     -- ( case model.status of 
@@ -134,26 +118,27 @@ playerItem =
         -- RoomItem.init model.viewerPos emoji
 
 
-targetItem : Model -> RoomItem 
+targetItem : Room -> RoomItem 
 targetItem = 
     .targetItem 
 
--- FUNCTIONS
+
+allItems : Room -> List RoomItem
+allItems model = 
+    model.trees ++ [ model.targetItem, model.playerItem ]
 
 
-interpReflect : Shared.InterpolatedReflection Model 
-interpReflect axis pct model =
-    { wallShape = Shared.interpReflectPolygon axis pct model.wallShape
-    , playerItem = RoomItem.interpReflect axis pct model.playerItem
-    , targetItem = RoomItem.interpReflect axis pct model.targetItem
-    , trees = List.map (RoomItem.interpReflect axis pct) model.trees
+-- Transformations --
+
+mirrorAcross : Axis -> Room -> Room 
+mirrorAcross axis room = 
+    { wallShape = Polygon2d.mirrorAcross axis room.wallShape 
+    , playerItem = RoomItem.mirrorAcross axis room.playerItem 
+    , targetItem = RoomItem.mirrorAcross axis room.targetItem 
+    , trees = List.map (RoomItem.mirrorAcross axis) room.trees 
     }
 
-mirrorAcross : Axis -> Model -> Model 
-mirrorAcross axis = 
-    interpReflect axis 1 -- TODO dont use the interp
-
-interpolateFrom : Model -> Model -> Float -> Model
+interpolateFrom : Room -> Room -> Float -> Room
 interpolateFrom r1 r2 pct = 
     { wallShape = Shared.interpolatePolygonFrom r1.wallShape r2.wallShape pct
     , playerItem = RoomItem.interpolateFrom r1.playerItem r2.playerItem pct
@@ -161,18 +146,14 @@ interpolateFrom r1 r2 pct =
     , trees = Shared.interpolateLists RoomItem.interpolateFrom r1.trees r2.trees pct
     }
 
-allItems : Model -> List RoomItem
-allItems model = 
-    model.trees ++ [ model.targetItem, model.playerItem ]
-
 -- VIEW
 
-view : Float -> Model -> Svg msg 
+view : Float -> Room -> Svg msg 
 view zoomScale model = 
     let 
-        viewRoomItem flag item = 
-            RoomItem.init item.pos item.emoji
-                |> RoomItem.view flag
+        viewRoomItem item = 
+            RoomItem.create item.pos item.emoji
+                |> RoomItem.view
 
         roomSvg =
             Svg.g [] <| 
@@ -183,51 +164,15 @@ view zoomScale model =
                     -- , Attr.opacity "0.5"
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
-                , viewRoomItem False model.playerItem
+                , viewRoomItem model.playerItem
                     -- |> Svg.rotateAround model.viewerPos 
                     --     (if model.status == Standing then 
                     --         Angle.degrees 0
                     --     else 
                     --      Direction2d.toAngle model.viewerDirection |> Quantity.minus (Angle.degrees 90)
                     --     )
-                , viewRoomItem True model.targetItem
+                , viewRoomItem model.targetItem
                 ]
-                ++ (List.map (viewRoomItem False) model.trees)        
+                ++ (List.map viewRoomItem model.trees)        
     in
-        roomSvg 
-            -- |> Svg.at (Shared.pixelsPerMeter 0.3)
-            -- |> Svg.relativeTo Shared.topLeftFrame
-
-
-
--- type Msg 
---     = NoOp
---     | MouseDragMsg Point Point
---     | SetStatus Status
---     | RoomItemMsg RoomItem.Msg
-
--- mouseDragMsg : Point -> Point -> Msg
--- mouseDragMsg = 
---     MouseDragMsg
-
--- setStatusMsg : Status -> Msg 
--- setStatusMsg = 
---     SetStatus
-
--- update : Msg -> Model -> Model
--- update msg model =
---     let viewerAngle = Direction2d.toAngle model.viewerDirection in
---     case msg of 
---         MouseDragMsg prevMousePos mousePos -> 
---             Shared.viewerFrame model.viewerPos viewerAngle
---                 |> Frame2d.originPoint
---                 |> (\origin -> Shared.angleDiff origin prevMousePos mousePos)
---                 |> Maybe.map (Quantity.plus viewerAngle)
---                 |> Maybe.withDefault viewerAngle
---                 |> (\a -> { model | viewerDirection = Direction2d.fromAngle a })
-
---         SetStatus status ->
---             { model | status = status }
-
---         _ -> 
---             model
+        roomSvg

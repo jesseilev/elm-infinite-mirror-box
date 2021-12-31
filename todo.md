@@ -10,6 +10,7 @@
 - 1 when sightray hits a corner the bounce escapes the room
 
 ## Features
+- switching between levels + resets is awkward
 - 2 label distance of straight portion during animation
 - 3 label ray endpoint with distance / photo attempt feedback
 - 1 put back the camera emoji and rotation thing

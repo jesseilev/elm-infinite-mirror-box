@@ -1,4 +1,19 @@
-module Sightray exposing (..)
+module Sightray exposing 
+    ( AngleLabels(..)
+    , beam
+    , endItem
+    , fromRoomAndProjectedPath
+    , hallway
+    , interpolateFrom
+    , length
+    , RayEnd(..)
+    , viewDistanceLabel
+    , viewProjectionWithOptions
+    , viewWithOptions
+    , Sightray
+    , uncurl
+    , uncurledSeries
+    )
 
 import Angle exposing (Angle)
 import Arc2d
@@ -19,18 +34,33 @@ import Point2d
 import Polygon2d
 import Polyline2d
 import Quantity exposing (Quantity)
-import Room
+import Room exposing (Room)
 import RoomItem exposing (RoomItem)
 import Shared exposing (..)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Triangle2d
 import Vector2d 
-import Arc2d exposing (Arc2d)
-import String exposing (lines)
-import Arc2d exposing (startPoint)
-import LineSegment2d exposing (endpoints)
 
+
+ -- Types -- 
+
+{-| 
+`Sightray` represents a trace of the viewer's gaze looking out into the room.
+
+Breaks down into 4 stages:
+1. It starts at the viewer's location, 
+2. passes through 0 or more mirrors (if we are showing the success animation),
+3. reflects off of 0 or more mirrors,
+4. and finally ends when it either: 
+    - reaches the desired distance 
+    - or terminates early due to hitting an item in the room.
+
+A few things to note:
+- The distinction between steps 2 and 3 above is not enforced at the type level.
+- The "actual ray of light" travels in the opposite direction, 
+starting at the Sightray's end point and arriving at the viewer's location.
+-}
 type alias Sightray = 
     { startPos : Point
     , bounces : List MirrorBounce 
@@ -54,11 +84,17 @@ noBounces : Point -> RayEnd -> Sightray
 noBounces startPos end = 
     Sightray startPos [] end
 
-fromRoomAndProjectedPath : Room.Model -> LineSegment -> Sightray
-fromRoomAndProjectedPath room projectedPath = 
+
+{-| 
+Construct a Sightray from the Room where the viewer is standing
+and a "projected sightline", ie a straight line segment describing where the 
+viewer's gaze *would* travel if it were to continue straight and never hit anything.
+-}
+fromRoomAndProjectedPath : Room -> LineSegment -> Sightray
+fromRoomAndProjectedPath room projectedSightline = 
     let 
         (projectedStart, projectedEnd) =
-            LineSegment2d.endpoints projectedPath
+            LineSegment2d.endpoints projectedSightline
 
         nextProjectedPath bounce =
             LineSegment2d.from bounce.point projectedEnd
@@ -70,14 +106,71 @@ fromRoomAndProjectedPath room projectedPath =
                 |> addBounce bounce
 
     in
-    case nextIntersection room projectedPath of
+    case nextIntersection room projectedSightline of
         Just (IntersectMirror bounce) -> 
             recurse bounce
         Just (IntersectItem point item) -> 
             noBounces projectedStart (EndAtItem point item)
         _ ->
             noBounces projectedStart (TooFar projectedEnd)
-                -- TODO dont hardcode the start and end types
+
+{-| 
+helper function used by `fromRoomAndProjectedPath`
+Given the room and projected sightline, find the next wall or item, if any,
+that the sightline collides with
+-}
+nextIntersection : Room -> LineSegment -> Maybe Intersection
+nextIntersection room projectedSightline =
+    let
+        -- "trim" off the very beginning of the sightline by shrinking it slightly
+        -- we dont want to count the start point as an intersection
+        -- which will happen for all recursive calls since the sightline will start on a wall
+        trimmedSightline = 
+            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedSightline) 0.999 projectedSightline   
+
+        nextMirrorBounceM = 
+            Polygon2d.edges room.wallShape
+                |> List.map (\e -> 
+                    (LineSegment2d.intersectionPoint trimmedSightline e
+                        |> Maybe.map (Tuple.pair e)))
+                |> Maybe.orList
+                |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
+                |> Maybe.map (\(wall, point, dir) -> 
+                    { wall = wall, point = point, axis = Axis2d.withDirection dir point })
+
+        startPoint = 
+            LineSegment2d.startPoint projectedSightline
+        
+        checkItemIntersection item point = 
+            if RoomItem.containsPoint point item then 
+                Just (item, point, Point2d.distanceFrom point startPoint) 
+            else 
+                Nothing
+
+        isInitialPlayerItem (item, point, distance) = 
+            startPoint == room.playerItem.pos
+                && (distance |> Quantity.lessThan RoomItem.radius)
+
+        itemHitM =
+            nextMirrorBounceM 
+                |> Maybe.map (.point >> LineSegment2d.from startPoint)
+                |> Maybe.withDefault projectedSightline
+                |> Shared.segmentSamplePoints
+                |> List.lift2 checkItemIntersection (Room.allItems room) 
+                |> Maybe.values
+                |> List.sortBy (\(_, _, distance) -> Quantity.unwrap distance)
+                |> List.filter (\info -> not (isInitialPlayerItem info))
+                |> List.head
+
+    in
+        case itemHitM of 
+            Just (item, point, _) -> Just (IntersectItem point item)
+            Nothing -> Maybe.map IntersectMirror nextMirrorBounceM
+
+type Intersection 
+    = IntersectMirror MirrorBounce
+    | IntersectItem Point RoomItem
+
  
 
  -- Transformations --
@@ -116,19 +209,20 @@ mirrorEndAcross axis end =
 
 updateEndPos : (Point -> Point) -> RayEnd -> RayEnd
 updateEndPos upd end =
-    let newPos = upd (getEndPos end) in
+    let newPos = upd (endPosFromEnd end) in
     case end of 
         TooFar _ -> TooFar newPos
         EndAtItem _ item -> EndAtItem newPos item
+
 
 -- Properties --
 
 endPos : Sightray -> Point 
 endPos = 
-    .end >> getEndPos
+    .end >> endPosFromEnd
 
-getEndPos : RayEnd -> Point 
-getEndPos end =
+endPosFromEnd : RayEnd -> Point 
+endPosFromEnd end =
     case end of 
         TooFar p -> p
         EndAtItem p _ -> p
@@ -139,60 +233,9 @@ endItem ray =
         TooFar _ -> Nothing 
         EndAtItem _ item -> Just item
 
-nextIntersection : Room.Model -> LineSegment -> Maybe Intersection
-nextIntersection room projectedSightLine =
-    let
-        -- "trim" off the very beginning of the sightline by shrinking it slightly
-        -- we dont want to count the start point as an intersection
-        -- which will happen for all recursive calls since the sightline will start on a wall
-        trimmedSightline = 
-            LineSegment2d.scaleAbout (LineSegment2d.endPoint projectedSightLine) 0.999 projectedSightLine   
+{-|
 
-        startPoint = 
-            LineSegment2d.startPoint projectedSightLine
-
-        nextMirrorBounceM = 
-            Polygon2d.edges room.wallShape
-                |> List.map (\e -> 
-                    (LineSegment2d.intersectionPoint trimmedSightline e
-                        |> Maybe.map (Tuple.pair e)))
-                |> Maybe.orList
-                |> Maybe.andThen (\(e, p) -> LineSegment2d.direction e |> Maybe.map (\d -> (e, p, d)))
-                |> Maybe.map (\(wall, point, dir) -> 
-                    { wall = wall, point = point, axis = Axis2d.withDirection dir point })
-        
-        checkItemIntersection item point = 
-            if RoomItem.containsPoint point item then 
-                Just (item, point, Point2d.distanceFrom point startPoint) 
-            else 
-                Nothing
-
-        isInitialPlayerItem (item, point, distance) = 
-            startPoint == room.playerItem.pos
-                -- && item == Room.playerItem room
-                && (distance |> Quantity.lessThan RoomItem.radius)
-
-        itemHitM =
-            nextMirrorBounceM 
-                |> Maybe.map (.point >> LineSegment2d.from startPoint)
-                |> Maybe.withDefault projectedSightLine
-                |> Shared.segmentSamplePoints
-                |> List.lift2 checkItemIntersection (Room.allItems room) 
-                |> Maybe.values
-                |> List.sortBy (\(_, _, distance) -> Quantity.unwrap distance)
-                |> List.filter (\info -> not (isInitialPlayerItem info))
-                -- |> Shared.debugLogF List.length "hit items length"
-                |> List.head
-
-    in
-        case itemHitM of 
-            Just (item, point, _) -> Just (IntersectItem point item)
-            Nothing -> Maybe.map IntersectMirror nextMirrorBounceM
-
-type Intersection 
-    = IntersectMirror MirrorBounce
-    | IntersectItem Point RoomItem
-
+-}
 uncurl : Sightray -> Maybe Sightray 
 uncurl ray = 
     projectionsAndReflections ray
@@ -209,14 +252,14 @@ uncurl ray =
                 )
         )
 
-uncurledSeries : Sightray -> List Sightray -- TODO nonempty list?
+uncurledSeries : Sightray -> List Sightray 
 uncurledSeries = 
     List.iterate uncurl
 
-hallway : Room.Model -> Sightray -> List Room.Model
+hallway : Room -> Sightray -> List Room
 hallway room ray = 
     let
-        reflectRoom : Room.Model -> List MirrorBounce -> Room.Model
+        reflectRoom : Room -> List MirrorBounce -> Room
         reflectRoom r projs = 
             List.foldl (\proj accRoom -> accRoom |> Room.mirrorAcross proj.axis) r projs
     in
@@ -247,7 +290,7 @@ reflections =
 
 vertices : Sightray -> List Point 
 vertices ray = -- TODO nonempty list?
-    ray.startPos :: (List.map .point ray.bounces) ++ [ getEndPos ray.end ]
+    ray.startPos :: (List.map .point ray.bounces) ++ [ endPosFromEnd ray.end ]
 
 polyline : Sightray -> Polyline
 polyline ray = 
@@ -270,7 +313,7 @@ bouncesWithNeighborPoints ray =
                     , bounce
                     , Array.get (i + 1) bounces 
                         |> Maybe.map .point
-                        |> Maybe.withDefault (getEndPos ray.end)
+                        |> Maybe.withDefault (endPosFromEnd ray.end)
                     )
                 )
     in
@@ -279,18 +322,13 @@ bouncesWithNeighborPoints ray =
         |> mapTheArray
         |> Array.toList
 
-bouncesWithAngles : Sightray -> List (MirrorBounce, Angle)
-bouncesWithAngles ray = 
-    ray 
-        |> bouncesWithNeighborPoints
-        |> List.map (\(prev, bounce, next) -> 
-            Shared.angleDiff bounce.point prev next 
-                |> Maybe.withDefault (Angle.degrees 0 |> Debug.log "angle fucked up") -- TODO deal with this better?
-                |> (\a -> Angle.degrees 180 |> Quantity.minus a |> Quantity.multiplyBy 0.5)
-                |> (\a -> (bounce, a))
-        )
 
-beam : Room.Model -> LineSegment -> List Sightray
+{-|
+Returns a handful of `Sightray`s that together comprise the yellow beam of light we show on screen.
+Takes the "real" ray as input and rotates it a bit in either direction, with an angle such that,
+at the desired distance away, the width of the beam will equal the diameter of a `RoomItem`.
+-}
+beam : Room -> LineSegment -> List Sightray
 beam room sightline = 
     let 
         (sightStart, sightEnd) = LineSegment2d.endpoints sightline
@@ -343,33 +381,16 @@ angleArcs ray =
         |> List.map (\(prev, bounce, next) -> ( mkWedge bounce prev, bounce, mkWedge bounce next )) 
 
 
-angleColor : Angle -> Color
-angleColor angle = 
-    Color.interpolate Color.RGB
-        (Shared.colors.green1 |> Color.hexToColor |> Result.withDefault Color.green)
-        (Shared.colors.yellow1 |> Color.hexToColor |> Result.withDefault Color.blue)
-        (angle 
-            |> Quantity.abs 
-            |> Quantity.unwrap
-            |> (\a -> a / (Quantity.unwrap (Angle.degrees 90)))
-        )
 
-
+angleArcRadius : Length
 angleArcRadius = Length.meters 0.25
-arcLabelDistanceScale = 1.65
-
-triangleForArc arc = 
-    Triangle2d.from (Arc2d.centerPoint arc)
-        (Arc2d.startPoint arc) 
-        (Arc2d.endPoint arc)
-
 
 interpolateFrom : Sightray -> Sightray -> Float -> Sightray
 interpolateFrom ray1 ray2 pct =
     { startPos = Shared.interpolatePointFrom ray1.startPos ray2.startPos pct
     , bounces = Shared.interpolateLists interpolateBounceFrom ray1.bounces ray2.bounces pct
     , end = ray1.end |> updateEndPos (\ep1 ->
-        Shared.interpolatePointFrom ep1 (getEndPos ray2.end) pct)
+        Shared.interpolatePointFrom ep1 (endPosFromEnd ray2.end) pct)
     }
 
 interpolateBounceFrom : MirrorBounce -> MirrorBounce -> Float -> MirrorBounce
@@ -379,30 +400,18 @@ interpolateBounceFrom bounce1 bounce2 pct =
     , point = Shared.interpolatePointFrom bounce1.point bounce2.point pct 
     }
 
-interpReflect : InterpolatedReflection Sightray
-interpReflect axis pct ray = 
-    { ray 
-        | startPos = interpReflectPoint axis pct ray.startPos
-        , bounces = List.map (interpReflectBounce axis pct) ray.bounces
-        , end = updateEndPos (interpReflectPoint axis pct) ray.end
-    }
-
-interpReflectBounce : InterpolatedReflection MirrorBounce
-interpReflectBounce axis pct bounce =
+bounceMirrorAcross : Axis -> MirrorBounce -> MirrorBounce
+bounceMirrorAcross axis bounce =
     let 
-        newWall = interpReflectLine axis pct bounce.wall 
+        newWall = LineSegment2d.mirrorAcross axis bounce.wall 
         newAxis = Axis2d.throughPoints (LineSegment2d.startPoint newWall) 
             (LineSegment2d.endPoint newWall)
             |> Maybe.withDefault bounce.axis
     in
     { wall = newWall 
     , axis = newAxis
-    , point = interpReflectPoint axis pct bounce.point 
+    , point = Point2d.mirrorAcross axis bounce.point 
     }
-
-bounceMirrorAcross : Axis -> MirrorBounce -> MirrorBounce
-bounceMirrorAcross axis =
-    interpReflectBounce axis 1
 
 
 -- VIEW 
@@ -542,7 +551,7 @@ viewAngle bounce arc =
             , Attr.strokeWidth "0.01"
             ] 
             arc
-        , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
+        , Svg.triangle2d [ Attr.fill color ] (Shared.triangleForArc arc)
         , Shared.viewLabel Shared.colors.greyDark
             (LineSegment2d.from arcCenter (Arc2d.midpoint arc)
                 |> (\l -> LineSegment2d.interpolate l 0.7)
@@ -562,14 +571,14 @@ viewAngle bounce arc =
         , sideLine (Arc2d.startPoint arc)
         , sideLine (Arc2d.endPoint arc)
         ]
-
-viewSamplePoints : Sightray -> Svg msg 
-viewSamplePoints ray = 
-    ray 
-        |> polyline
-        |> Polyline2d.segments
-        |> List.map Shared.segmentSamplePoints
-        |> List.concat
-        |> List.map (\p -> Svg.circle2d [ Attr.fill "red" ] 
-            (Circle2d.atPoint p (Length.meters 0.02)))
-        |> Svg.g []
+        
+angleColor : Angle -> Color
+angleColor angle = 
+    Color.interpolate Color.RGB
+        (Shared.colors.green1 |> Color.hexToColor |> Result.withDefault Color.green)
+        (Shared.colors.yellow1 |> Color.hexToColor |> Result.withDefault Color.blue)
+        (angle 
+            |> Quantity.abs 
+            |> Quantity.unwrap
+            |> (\a -> a / (Quantity.unwrap (Angle.degrees 90)))
+        )

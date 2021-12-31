@@ -1,41 +1,43 @@
 module RoomItem exposing 
-    ( RoomItem
-    , init
-    , setPos
-    , containsPoint
-    , radius
+    ( containsPoint
     , emojis
-    , view
-    , interpReflect
+    , create
     , interpolateFrom
+    , mirrorAcross
+    , radius
+    , RoomItem
+    , setPos
+    , view
     )
 
 import Axis2d
 import Circle2d
 import Direction2d
-import Color
 import Geometry.Svg as Svg
 import Length exposing (Length)
 import Point2d
 import Shared exposing (Point)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import TypedSvg.Attributes
 import TypedSvg.Types exposing (Paint(..))
 import Vector2d 
-import Shared exposing (InterpolatedReflection)
-import Shared exposing (Circle, interpReflectPoint)
-import Quantity exposing (Quantity)
-import Circle2d exposing (Circle2d)
-import Circle2d exposing (boundingBox)
+import Shared exposing (Axis, Circle)
+import Quantity
+import Circle2d
+
+
+-- Types --
 
 type alias RoomItem = 
     { pos : Point 
     , emoji : String 
     }
 
-init : Point -> String -> RoomItem
-init = 
+
+-- Constructors --
+
+create : Point -> String -> RoomItem
+create = 
     RoomItem
 
 
@@ -52,6 +54,7 @@ updatePos upd item =
 setEmoji emoji item =
     { item | emoji = emoji }
 
+
 -- Properties --
 
 containsPoint : Point -> RoomItem -> Bool
@@ -62,22 +65,20 @@ boundaryCircle : RoomItem -> Circle
 boundaryCircle item = 
     Circle2d.atPoint item.pos radius
 
-radius : Length 
-radius = 
-    Length.meters 0.2
-
-interpReflect : InterpolatedReflection RoomItem
-interpReflect axis pct item =
-    item |> updatePos (interpReflectPoint axis pct)
-
 interpolateFrom : Shared.Interpolation RoomItem 
 interpolateFrom item1 item2 pct = 
     item1 
         |> updatePos (\p1 -> Shared.interpolatePointFrom p1 item2.pos pct)
         |> setEmoji (if pct < 0.5 then item1.emoji else item2.emoji)
 
+mirrorAcross : Axis -> RoomItem -> RoomItem
+mirrorAcross axis = 
+    updatePos (Point2d.mirrorAcross axis)
 
--- TODO make typesafe
+radius : Length 
+radius = 
+    Length.meters 0.2
+
 emojis = 
     { roundTree = "🌳"
     , pineTree = "🌲"
@@ -95,18 +96,17 @@ emojis =
 
 -- VIEW
 
-
-view : Bool -> RoomItem -> Svg msg
-view inFocus item = 
+view : RoomItem -> Svg msg
+view item = 
     let
         fontSize = (Quantity.unwrap radius) * 0.95
     in
     Svg.g 
         [ ] 
         [ Svg.circle2d
-            [ Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
-            , Attr.stroke <| Shared.colors.greyVeryLight --if inFocus then Shared.colors.yellow1 else "#f0f0f0"
-            , Attr.fill <| "none" --if inFocus then Shared.colors.yellow1 else "white"
+            [ Attr.strokeWidth <| "0.01"
+            , Attr.stroke <| Shared.colors.greyVeryLight
+            , Attr.fill <| "none"
             ]
             (boundaryCircle item)
         , Svg.text_ 

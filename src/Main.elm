@@ -118,7 +118,7 @@ view model =
                 , Font.color darkGrey
                 ]
                 [ El.el [ Region.heading 1, Font.size 30, El.paddingXY 0 20 ] 
-                    <| El.text "Infinite Bird Box"
+                    <| El.text "Pat's Infinite Mirror Box"
                 , El.el [ Region.heading 3, Font.size 22 ] <| El.text "Scenario"
                 , El.paragraph paragraphAttrs 
                     [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
@@ -128,7 +128,7 @@ view model =
                     ]
                 , El.paragraph paragraphAttrs
                     [ El.text "Arriving home, Pat enters her "
-                    , El.el [ Font.bold ] (El.text "Infinite Bird Box, ")
+                    , El.el [ ] (El.text "Infinite Mirror Box, ")
                     , El.text "a small room with 4 adjustable mirrors for walls. "
                     , El.text "The room doesn't contain much, just Garrett the Parrot 🦜 "
                     , El.text "and a few potted plants 🪴. "
