@@ -7,7 +7,6 @@ import Axis2d exposing (Axis2d)
 import Browser
 import Circle2d
 import Color
-import Convert
 import Direction2d exposing (Direction2d)
 import Element as El exposing (Element)
 import Element.Background as Background
@@ -40,7 +39,6 @@ import Room exposing (Model)
 import RoomItem exposing (RoomItem)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import Convert exposing (lengthToPixels)
 import Rectangle2d exposing (Rectangle2d)
 import SketchPlane3d exposing (toPlane)
 import TypedSvg
