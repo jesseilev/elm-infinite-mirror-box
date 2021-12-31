@@ -15,6 +15,7 @@ import Angle exposing (Angle)
 import Axis2d
 import Circle2d
 import Color
+import Color.Convert as Color
 import Direction2d
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
@@ -130,9 +131,9 @@ view zoomScale model =
         roomSvg =
             Svg.g [] <| 
                 [ Svg.polygon2d 
-                    [ Attr.fill Shared.colors.roomBackground
+                    [ Attr.fill "none"
                     , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.03
-                    , Attr.stroke "grey"
+                    , Attr.stroke "lightGrey"
                     -- , Attr.opacity "0.5"
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)

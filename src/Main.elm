@@ -73,10 +73,16 @@ type alias Model =
     { room : Room.Model
     , sightDirection : Direction
     , sightDistance : Length
+    , mouseHoverArea : Maybe HoverArea
     , mouseDragPos : Maybe Point
     , dragging : Bool
+    , ticks : Int
     , photoAttempt : Maybe PhotoAttempt
     }
+
+type HoverArea 
+    = HoverRoom
+    | HoverBeam
 
 type PhotoAttempt
     = PhotoFail FailReason
@@ -97,8 +103,10 @@ init _ =
     { room = Room.init1
     , sightDirection = Direction2d.fromAngle (Angle.degrees 75)
     , sightDistance = Length.meters 8.0
+    , mouseHoverArea = Nothing
     , mouseDragPos = Nothing
     , dragging = False
+    , ticks = 0
     , photoAttempt = Nothing
     }
         |> noCmds
@@ -154,6 +162,7 @@ type Msg
     | DragStart
     | DragStop
     | MouseClickAt Point
+    | MouseHoverOver (Maybe HoverArea)
     | AdjustZoom Float
     | StepAnimation Int
     | Tick
@@ -186,7 +195,11 @@ update msg model =
 
         MouseClickAt sceneOffsetPos -> 
             model 
-                |> updatePhotoAttempt
+                |> (if Maybe.isNothing (successAnimation model) then updatePhotoAttempt else identity)
+                |> noCmds
+
+        MouseHoverOver hover -> 
+            { model | mouseHoverArea = hover }
                 |> noCmds
 
         StepAnimation stepDiff ->
@@ -196,16 +209,17 @@ update msg model =
                 |> noCmds
 
         Tick -> 
-            model |> updateSuccessAnimation (\ani -> 
-                case ani.transitionPct of 
-                    Nothing -> ani
-                    Just pct -> pct + 0.01 |> (\newPct -> 
-                        if newPct < 1.0 then 
-                            { ani | transitionPct = Just newPct }
-                        else 
-                            { ani | step = ani.step + 1, transitionPct = Just 0 }
-                        )
-            )
+            { model | ticks = model.ticks + 1 }
+                |> updateSuccessAnimation (\ani -> 
+                    case ani.transitionPct of 
+                        Nothing -> ani
+                        Just pct -> pct + 0.02 |> (\newPct -> 
+                            if newPct < 1.0 then 
+                                { ani | transitionPct = Just newPct }
+                            else 
+                                { ani | step = ani.step + 1, transitionPct = Just 0 }
+                            )
+                )
                 |> noCmds
 
         _ ->
@@ -276,10 +290,17 @@ closeEnough =
 
 subscriptions : Model -> Sub Msg
 subscriptions model = 
-    successAnimation model
-        |> Maybe.andThen .transitionPct
-        |> Maybe.map (\_ -> Time.every 50 (\_ -> Tick))
-        |> Maybe.withDefault Sub.none
+    if 
+        Maybe.isJust model.mouseHoverArea 
+            || Maybe.isJust (successAnimation model |> Maybe.andThen .transitionPct)
+    then
+        Time.every 50 (\_ -> Tick)
+    else 
+        Sub.none
+    -- successAnimation model
+    --     |> Maybe.andThen .transitionPct
+    --     |> Maybe.map (\_ -> Time.every 50 (\_ -> Tick))
+    --     |> Maybe.withDefault Sub.none
 
 
 -- VIEW --
@@ -326,6 +347,7 @@ view model =
                         |> String.fromFloat
                         |> (\dist -> "Your distance: " ++ dist ++ " meters")
                         |> El.text
+                    , model.mouseHoverArea |> Debug.toString |> El.text
                     -- , successAnimation model 
                     --     |> El.text
                     ]
@@ -341,14 +363,14 @@ viewParagraph text =
 
 patTheCatText = 
     """Pat the Cat 🐈‍⬛ is an avid wildlife photographer. 
-    She recently bought a fancy new camera 📷, and is excited to test out its zoom 
+    She recently bought a fancy new camera 🎥, and is excited to test out its zoom 
     abilities."""
 
 birdBoxText = 
     """Arriving home, Pat enters her Infinite Bird Box, a small room with 4 
     adjustable mirrors for walls. The room doesn't contain much, just Garrett the Parrot 🦜 and 
     a few potted plants 🪴. But the light bouncing around off the mirrored walls gives 
-    Pat the illusion of standing in a vast forest surrounded by many plants and birds:
+    Pat the illusion of standing in an "infinite forest" surrounded by many plants and birds:
     some close by, and others far away..."""
 
 instructionsText sightDistance = 
@@ -369,15 +391,15 @@ svgContainer model =
                 MouseDragAt (mouseToSceneCoords (currentZoomScale model) event.pointer.offsetPos)
             else 
                 NoOp)
-        -- , Html.Attributes.style "cursor" (if model.dragging then "grabbing" else "grab")
-        -- , Wheel.onWheel (\event -> AdjustZoom event.deltaY)
-        -- , Mouse.onClick (\event -> if model.dragging then NoOp else MouseClickAt Point2d.origin)
+        , Pointer.onEnter (\_ -> MouseHoverOver (Just HoverRoom))
+        , Pointer.onLeave (\_ -> MouseHoverOver Nothing)
         ]
         [ Svg.svg 
             [ Attr.width (constants.containerWidth |> String.fromFloat)
             , Attr.height (constants.containerHeight |> String.fromFloat)
             ]
-            [ Svg.g [] 
+            [ Svg.g 
+                []
                 [ (successAnimation model) 
                     |> Maybe.map (viewDiagramSuccess model)
                     |> Maybe.withDefault (viewDiagramNormal model)
@@ -387,9 +409,10 @@ svgContainer model =
 
 viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
-    Svg.g []
-        [ viewBeam (successAnimation model) model
-        , Room.view (currentZoomScale model) model.room
+    Svg.g 
+        []
+        [ Room.view (currentZoomScale model) model.room
+        , viewBeam (successAnimation model) model
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame
@@ -415,12 +438,11 @@ viewDiagramSuccess model animation =
         (currentRay, nextRayM) = 
             transitionRay animation (rayNormal model)
 
-        rooms = 
+        reflectedRooms = 
             currentRay |> Sightray.hallway model.room 
-                |> Shared.debugLogF "rooms length" List.length
 
         farthestRoom = 
-            rooms |> List.last |> Maybe.withDefault model.room
+            reflectedRooms |> List.last |> Maybe.withDefault model.room
 
         nextRoomM = 
             currentRay
@@ -434,7 +456,7 @@ viewDiagramSuccess model animation =
                 (animation.transitionPct |> Maybe.map pctForRoom)
 
         centroid = 
-            rooms ++ (transitionRoomM |> Maybe.toList)
+            reflectedRooms ++ (transitionRoomM |> Maybe.toList)
                 |> List.map (.wallShape >> Polygon2d.vertices)
                 |> List.concat
                 |> Polygon2d.convexHull
@@ -442,21 +464,21 @@ viewDiagramSuccess model animation =
                 |> Maybe.withDefault initialRay.startPos
     in
     Svg.g [ ] 
-        [ viewBeam (Just animation) model
-        , rooms ++ (transitionRoomM |> Maybe.toList)
+        [ reflectedRooms ++ (transitionRoomM |> Maybe.toList)
             |> List.map (Room.view (currentZoomScale model))
             |> Svg.g [ Attr.opacity "0.4" ]
         , Room.view (currentZoomScale model) model.room
+        , viewBeam (Just animation) model
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
         |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
         |> Svg.relativeTo Shared.svgFrame
 
 pctForRoom = 
-    clamp 0 0.5 >> (\n -> n * 2) >> Ease.inOutQuad
+    clamp 0 0.5 >> (\n -> n * 2) >> Ease.inOutCubic
 
 pctForRay = 
-    clamp 0.5 1 >> (\x -> (x * 2) - 1) >> Ease.inOutQuad
+    clamp 0.5 1 >> (\x -> (x * 2) - 1) >> Ease.inOutCubic
 
 viewBeam : Maybe SuccessAnimation -> Model -> Svg Msg 
 viewBeam animationM model = 
@@ -475,6 +497,8 @@ viewBeam animationM model =
             if Maybe.isNothing animationM then 
                 [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
                 , Pointer.onDown (\_ -> if Maybe.isNothing animationM then DragStart else NoOp)
+                , Pointer.onEnter (\_ -> MouseHoverOver (Just HoverBeam))
+                , Pointer.onLeave (\_ -> MouseHoverOver (Just HoverRoom))
                 ]
             else
                 []
@@ -484,6 +508,7 @@ viewBeam animationM model =
                 |> Maybe.map (\ani -> transitionRay ani beamRay)
                 |> Maybe.map (\(r, rM) -> Maybe.withDefault r rM)
                 |> Maybe.withDefault beamRay
+
     in 
     Svg.g gAttrs
         (List.concat
@@ -496,12 +521,16 @@ viewBeam animationM model =
                 |> List.map transitionIfAnimating
                 |> List.indexedMap (\i -> 
                     Sightray.viewWithOptions (options False 
-                        [ Attr.stroke Shared.colors.yellow1 
-                        , Attr.strokeDashoffset <| Shared.floatAttribute 1 (toFloat i * 0.1)
+                        [ Attr.stroke <| 
+                            if model.dragging || model.mouseHoverArea == Just HoverBeam then 
+                                Shared.colors.yellowDark 
+                            else 
+                                Shared.colors.yellowLight
+                        , Attr.strokeDashoffset <| Shared.floatAttribute 1 
+                            (toFloat i + (toFloat (model.ticks) * 0.005))
                         , Attr.strokeDasharray <| Shared.floatAttribute 1 
-                            (i |> modBy 3 |> toFloat |> ((*) 0.03) |> ((+) 0.05))
-                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 
-                            (0.005 * (if model.dragging then 2 else 1))
+                            (i |> modBy 3 |> toFloat |> ((*) 0.03) |> ((+) 0.07))
+                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 0.005
                         ]
                     )
                 )

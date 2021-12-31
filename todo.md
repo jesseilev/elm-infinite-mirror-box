@@ -8,10 +8,7 @@
 - 1 put back the camera emoji and rotation thing
 - 4 multple room arrangement challenges
 - 2 responsive
-- 2 split each animation step into 2 substeps
 - 1 better visual feedback, mouse hovers, cursor hand, etc
-- 1 sightpath animates the dotted line towards the player
-- 1 animation easing functions 
 - 1 after success animation you can drag to look around again and the hallway responds
 - 3 use requestanimationframe for animations
 
@@ -22,6 +19,7 @@
 - 2 include angle info in MirrorBounce? (and neighbor points?)
 - 1 Main.updatePhotoAttempt is checking itemHit itself, rather than looking at RayEnd
 - ray endpoint label in Main should move to Sightray
+- mouseclickat 
 - 1 make getters instead of using .accessors eg ray.startPos
 - 1 settle on name "viewer" vs "player"
 - 2 RoomItem is kind of pointless. emoji should just be an argument to the view. point detection can just be a function in shared

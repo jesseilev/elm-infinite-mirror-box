@@ -205,10 +205,13 @@ interpReflectDirection axis pct dir =
 colors = 
     { blue1 = "#2c6fef"
     , yellow1 = "#eea71f"
+    , yellowLight = "#f2b135"
+    , yellowDark = "#df9912"
     , red1 = "#e1503c"
     , green1 = "#179e7e"
     , darkBackground = Color.rgb 0.6 0.6 0.6
-    , roomBackground = "none"
+    , roomBackground = Color.white
+    , greyVeryLight = "#eee"
     }
 
 

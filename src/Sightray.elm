@@ -486,6 +486,7 @@ lineAttrsDefault zoomScale =
     , Attr.strokeDashoffset <| Shared.floatAttribute zoomScale 0.0
     ]
 
+viewAngles : Sightray -> Svg msg
 viewAngles ray = 
     angleArcs ray
         |> List.map (\(arc1, bounce, arc2) -> 
@@ -499,21 +500,32 @@ viewAngle : MirrorBounce -> Arc -> Svg msg
 viewAngle bounce arc =
     let 
         angle = Arc2d.sweptAngle arc 
+
         color = angleColor angle |> Color.colorToHex
-        arcStart = Arc2d.startPoint arc
+
+        arcCenter = Arc2d.centerPoint arc
+
+        sideLine p = 
+            Svg.lineSegment2d 
+                [ Attr.fill "none"
+                , Attr.stroke "black"
+                , Attr.strokeWidth "0.02" 
+                , Attr.strokeDasharray "0.02"
+                ]
+                (LineSegment2d.from arcCenter p
+                    |> LineSegment2d.scaleAbout arcCenter 1.5)
     in
-    Svg.g 
-        []
+    Svg.g []
         [ Svg.arc2d 
             [ Attr.fill color
             , Attr.stroke "black" --fill
-            , Attr.strokeWidth "0.005"
+            , Attr.strokeWidth "0.01"
             -- , Attr.opacity "0.33"
             ] 
             arc
         , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
         , viewLabel 
-            (LineSegment2d.from (Arc2d.centerPoint arc) (Arc2d.midpoint arc)
+            (LineSegment2d.from arcCenter (Arc2d.midpoint arc)
                 |> (\l -> LineSegment2d.interpolate l 0.7)
             )
             (Vector2d.rTheta (Length.meters 0.25) 
@@ -528,6 +540,8 @@ viewAngle bounce arc =
                 |> String.fromInt 
                 |> (\s -> s ++ "º")
             )
+        , sideLine (Arc2d.startPoint arc)
+        , sideLine (Arc2d.endPoint arc)
         ]
 
 viewLabel : Point -> Vector -> String -> Svg msg
