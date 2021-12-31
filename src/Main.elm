@@ -106,7 +106,7 @@ view model =
             (El.column 
                 [ El.centerX 
                 , El.paddingXY 20 20
-                , El.spacing 50
+                , El.spacing 30
                 -- , El.width <| El.px 800
                 , Font.size 16
                 , Font.family 
@@ -117,9 +117,26 @@ view model =
                     ]
                 , Font.color darkGrey
                 ]
-                [ El.el [ Region.heading 1, Font.size 30 ] <| El.text "Pat's Infinite Bird Box"
-                , El.paragraph paragraphAttrs [ El.text patTheCatText ]
-                , El.paragraph paragraphAttrs [ El.text birdBoxText ]
+                [ El.el [ Region.heading 1, Font.size 30, El.paddingXY 0 20 ] 
+                    <| El.text "Infinite Bird Box"
+                , El.el [ Region.heading 3, Font.size 22 ] <| El.text "Scenario"
+                , El.paragraph paragraphAttrs 
+                    [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
+                    , El.text "She recently bought a fancy new camera, "
+                    , El.text "and is excited to start taking some pics, "
+                    , El.text "especially to test out the range of its zoom capabilities."
+                    ]
+                , El.paragraph paragraphAttrs
+                    [ El.text "Arriving home, Pat enters her "
+                    , El.el [ Font.bold ] (El.text "Infinite Bird Box, ")
+                    , El.text "a small room with 4 adjustable mirrors for walls. "
+                    , El.text "The room doesn't contain much, just Garrett the Parrot 🦜 "
+                    , El.text "and a few potted plants 🪴. "
+                    , El.text "But the light bouncing around off the mirrored walls "
+                    , El.text """gives Pat the illusion of standing in an "infinite forest" """
+                    , El.text "surrounded by many plants and birds: "
+                    , El.text " some close by, and others far away..."
+                    ]
                 , viewDiagramContainer model
                 ]
             )
@@ -136,7 +153,7 @@ viewDiagramContainer model =
         ] 
         [ viewLevelControls model.levelIndex
         , El.column [ El.padding 10 ]  
-            [ instructionsParagraph (diagram model).sightDistance
+            [ instructionsParagraph model.levelIndex (diagram model).sightDistance
             , El.el 
                 [ El.centerX ] 
                 ( diagram model 
@@ -174,30 +191,19 @@ viewLevelControls levelIndex =
 paragraphAttrs =
     [ El.spacing 15 ] 
         
-instructionsParagraph sightDistance = 
+instructionsParagraph levelIndex sightDistance = 
     El.paragraph 
         [ El.spacing 15
+        -- , Font.size 15
         , El.paddingXY 40 40
         -- , Background.color lightGrey
         ]
-        [ El.text "Your challenge: Click and drag the beginning of the light beam to aim Pat's camera "
-        , El.text "at a bird in the mirror that appears to be " 
+        [ El.el [ ] 
+            (El.text "Take a picture of a bird in the mirror that appears to be ")
         , El.el 
             [ Font.bold
             , Font.color yellow1
             ] 
             (El.text <| String.fromFloat (Quantity.unwrap sightDistance) ++ " meters away.")
         ]
-
-patTheCatText = 
-    """Pat the Cat 🐈‍ is an avid wildlife photographer. 
-    She recently bought a fancy new camera 🎥, and is excited to test out its zoom 
-    capabilities."""
-
-birdBoxText = 
-    """Arriving home, Pat enters her Infinite Bird Box, a small room with 4 
-    adjustable mirrors for walls. The room doesn't contain much, just Garrett the Parrot 🦜 and 
-    a few potted plants 🪴. But the light bouncing around off the mirrored walls gives 
-    Pat the illusion of standing in an "infinite forest" surrounded by many plants and birds:
-    some close by, and others far away..."""
 

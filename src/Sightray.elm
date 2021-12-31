@@ -452,21 +452,28 @@ viewWithOptions options ray =
             |> (\vs -> vs ++ [endPos ray])
             |> Polyline2d.fromVertices
             |> Svg.polyline2d (lineAttrsDefault options.zoomScale ++ options.attributes)
-        -- , case options.angleLabels of 
-        --     AllAngles -> 
-        --         Svg.g [] 
-        --             [ viewAngles ray
-        --             , distanceLabel ray
-        --             ]
-        --     _ -> Shared.svgEmpty
+        , case options.angleLabels of 
+            AllAngles -> 
+                Svg.g [] 
+                    [ viewAngles ray
+                    -- , distanceLabel ray
+                    ]
+            _ -> Shared.svgEmpty
         ]
 
-distanceLabel ray = 
+viewDistanceLabel : Sightray -> Svg msg
+viewDistanceLabel ray = 
+    let 
+        endxy = 
+            case ray.end of 
+                TooFar pos -> pos 
+                EndAtItem _ item -> item.pos
+    in
     Svg.g [] 
         [ Svg.circle2d
-            [ Attr.fill "none", Attr.strokeWidth "0.01", Attr.stroke "black" ]
-            (Circle2d.atPoint (endPos ray) RoomItem.radius)
-        , Shared.viewLabel (endPos ray) (Vector2d.meters 0 0.35) 
+            [ Attr.fill "none", Attr.strokeWidth "0.01", Attr.stroke Shared.colors.greyMedium ]
+            (Circle2d.atPoint endxy RoomItem.radius)
+        , Shared.viewLabel Shared.colors.greyMedium endxy (Vector2d.meters 0.1 0.3) 
             (length ray 
                 |> Length.inCentimeters 
                 |> (\c -> c / 100) 
@@ -520,7 +527,7 @@ viewAngle bounce arc =
         sideLine p = 
             Svg.lineSegment2d 
                 [ Attr.fill "none"
-                , Attr.stroke "black"
+                , Attr.stroke Shared.colors.greyDark
                 , Attr.strokeWidth "0.02" 
                 , Attr.strokeDasharray "0.02"
                 ]
@@ -531,12 +538,12 @@ viewAngle bounce arc =
     Svg.g []
         [ Svg.arc2d 
             [ Attr.fill color
-            , Attr.stroke "black"
+            , Attr.stroke Shared.colors.greyDark
             , Attr.strokeWidth "0.01"
             ] 
             arc
         , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
-        , Shared.viewLabel 
+        , Shared.viewLabel Shared.colors.greyDark
             (LineSegment2d.from arcCenter (Arc2d.midpoint arc)
                 |> (\l -> LineSegment2d.interpolate l 0.7)
             )

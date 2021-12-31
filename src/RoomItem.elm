@@ -101,15 +101,12 @@ view inFocus item =
     let
         fontSize = (Quantity.unwrap radius) * 0.95
     in
-    Svg.g [] 
+    Svg.g 
+        [ ] 
         [ Svg.circle2d
-            [ 
-                -- TypedSvg.Attributes.fill <| Paint Color.white
-                -- Mouse.onClick (\event -> MouseClickAt (mouseToSceneCoords model event.offsetPos))
-            Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
+            [ Attr.strokeWidth <| "0.01" --if inFocus then "0.01" else "0"
             , Attr.stroke <| Shared.colors.greyVeryLight --if inFocus then Shared.colors.yellow1 else "#f0f0f0"
-            , Attr.fill <| "white" --if inFocus then Shared.colors.yellow1 else "white"
-            -- , Attr.opacity <| if inFocus then "0.5" else "1"
+            , Attr.fill <| "none" --if inFocus then Shared.colors.yellow1 else "white"
             ]
             (boundaryCircle item)
         , Svg.text_ 

@@ -100,13 +100,13 @@ initLevel1 =
 initLevel2 : Model 
 initLevel2 = 
     init Room.initLevel2 
-        (Direction2d.fromAngle (Angle.degrees 160))
+        (Direction2d.fromAngle (Angle.degrees 130))
         (Length.meters 5)
 
 initLevel3 : Model
 initLevel3 =
     init Room.initLevel3
-        (Direction2d.fromAngle (Angle.degrees 105))
+        (Direction2d.fromAngle (Angle.degrees 80))
         (Length.meters 8.0)
 
 initLevel4 : Model
@@ -381,6 +381,10 @@ viewDiagramNormal model =
         [ Room.view (currentZoomScale model) model.room
         , viewBeam (successAnimation model) model
         , viewPhotoAttempt model
+        , if model.mouseHoverArea == Just HoverBeam && not model.dragging then 
+            Sightray.viewDistanceLabel (rayNormal model) 
+          else 
+            Shared.svgEmpty
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame

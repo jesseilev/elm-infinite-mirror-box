@@ -58,23 +58,23 @@ svgFrame =
         |> Frame2d.reverseY
         
 
-viewLabel : Point -> Vector -> String -> Svg msg
-viewLabel startPoint vector text = 
+viewLabel : String -> Point -> Vector -> String -> Svg msg
+viewLabel color startPoint vector text = 
     let 
         endPoint = Point2d.translateBy vector startPoint 
         textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
         fontSize = 0.125
     in
     Svg.g []
-        [ Svg.circle2d [ Attr.fill "black" ]
+        [ Svg.circle2d [ Attr.fill color ]
             (Circle2d.atPoint startPoint (Length.meters 0.02))
         , Svg.lineSegment2d 
-            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth (String.fromFloat 0.01) ]
+            [ Attr.fill "none", Attr.stroke color, Attr.strokeWidth (String.fromFloat 0.01) ]
             (LineSegment2d.from startPoint endPoint)
         , Svg.text_ 
             [ Attr.fontSize <| String.fromFloat fontSize
             , Attr.x <| String.fromFloat (-0.5 * fontSize)
-            , Attr.fill "black"
+            , Attr.fill color
             , Attr.alignmentBaseline "central"
             ] 
             [ Svg.text text ]
@@ -225,15 +225,15 @@ interpReflectDirection axis pct dir =
 
 
 colors = 
-    { blue1 = "#2c6fef"
-    , yellow1 = "#eea71f"
+    { yellow1 = "#eea71f"
     , yellowLight = "#f2b135"
     , yellowDark = "#df9912"
+    , blue1 = "#2c6fef"
     , red1 = "#e1503c"
     , green1 = "#179e7e"
-    , darkBackground = Color.rgb 0.6 0.6 0.6
-    , roomBackground = Color.white
     , greyVeryLight = "#eee"
+    , greyMedium = "#888"
+    , greyDark = "#555"
     }
 
 

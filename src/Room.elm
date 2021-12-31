@@ -82,10 +82,10 @@ initLevel2 =
             , Point2d.meters 1.5 1.25
             , Point2d.meters -1.5 2.1
             ]
-    , playerItem = RoomItem (Point2d.meters -0.65 -1.0) RoomItem.emojis.cat
+    , playerItem = RoomItem (Point2d.meters -0.65 -0.9) RoomItem.emojis.cat
     , targetItem = RoomItem (Point2d.meters 0.7 -0.6) RoomItem.emojis.parrot
     , trees =
-        [ RoomItem (Point2d.meters -0.2 1.3) RoomItem.emojis.plant
+        [ RoomItem (Point2d.meters 0.3 -1.4) RoomItem.emojis.plant
         , RoomItem (Point2d.meters 0.7 0.1) RoomItem.emojis.plant
         ]
     }
@@ -120,10 +120,8 @@ initLevel4 =
     , playerItem = RoomItem (Point2d.meters 1.35 0.5) RoomItem.emojis.cat
     , targetItem = RoomItem (Point2d.meters -0.65 0.55) RoomItem.emojis.parrot
     , trees = []
-        -- [ RoomItem (Point2d.meters 0.5 0.3) RoomItem.emojis.plant]
     }
 
--- TODO just make these things actual items
 playerItem : Model -> RoomItem 
 playerItem = 
     .playerItem

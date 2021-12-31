@@ -2,8 +2,9 @@
 # Todo
 
 ## Bugs
-- target hit detection stops triggering after first attempt
 - some rays not projecting properly
+    - related: slight movement when animation starts
+    - related: item highlighting during animation is slightly off
 - 2 room reflection animation sometimes collapses into a single point
 - 1 camera emoji is tilted wrong in reflected rooms
 - 1 when sightray hits a corner the bounce escapes the room
@@ -14,8 +15,8 @@
 - 1 put back the camera emoji and rotation thing
 - 2 responsive
 - roomitem cursor
+- level buttons focus
 - 1 after success animation you can drag to look around again and the hallway responds
-- 1 better visual feedback, mouse hovers, cursor hand, etc
 - 3 use requestanimationframe for animations
 
 ## Internal
