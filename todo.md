@@ -1,16 +1,23 @@
 
 # Todo
 
+## Bugs
+- 1 clicking during a transition starts the transition over
+- 2 room reflection animation sometimes collapses into a single point
+- 1 camera emoji is tilted wrong in reflected rooms
+- 1 when you click the final animation step it gets weird
+- 1 when sightray hits a corner the bounce escapes the room
+- 1 toplevel layout isnt centering in the page
 
 ## Features
 - 2 label distance of straight portion during animation
 - 3 label ray endpoint with distance / photo attempt feedback
 - 1 put back the camera emoji and rotation thing
-- 4 multple room arrangement challenges
 - 2 responsive
 - 1 better visual feedback, mouse hovers, cursor hand, etc
 - 1 after success animation you can drag to look around again and the hallway responds
 - 3 use requestanimationframe for animations
+- roomitem cursor
 
 ## Internal
 - 1 Diagram module
@@ -23,13 +30,15 @@
 - 1 make getters instead of using .accessors eg ray.startPos
 - 1 settle on name "viewer" vs "player"
 - 2 RoomItem is kind of pointless. emoji should just be an argument to the view. point detection can just be a function in shared
+- put all the constants in the constants record or else dont use it at all
 
-## Bugs
-- 1 clicking during a transition starts the transition over
-- 2 room reflection animation sometimes collapses into a single point
-- 1 camera emoji is tilted wrong in reflected rooms
-- 1 when you click the final animation step it gets weird
-- 1 when sightray hits a corner the bounce escapes the room
+## Housekeeping
+- fix git username
+- publish on netlify or gh pages etc
+- might need index.html and associated elm changes
+- answer essay qs
+- clean up code
+- document code
 
 
 

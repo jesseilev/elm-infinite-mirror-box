@@ -6,6 +6,7 @@ import Axis2d exposing (Axis2d)
 import Circle2d exposing (Circle2d)
 import Color
 import Direction2d exposing (Direction2d)
+import Element as El exposing (Element)
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Length exposing (Length, Meters)
@@ -42,7 +43,7 @@ type SceneCoords = SceneCoords
 type SvgCoords = SvgCoords 
 
 pixelsPerMeter = 
-    pixels 100 
+    pixels 100
         |> Quantity.per (Length.meters 1)
 
 -- Frames --
@@ -90,12 +91,9 @@ viewFrame color frame =
 
 
 constants =
-    { containerWidth = 500 
+    { containerWidth = 500
     , containerHeight = 500 
     }
-
-
-
 
 noCmds : a -> (a, Cmd msg)
 noCmds x = ( x, Cmd.none )
