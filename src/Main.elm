@@ -123,8 +123,9 @@ view model =
                 , El.paragraph paragraphAttrs 
                     [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
                     , El.text "She recently bought a fancy new camera, "
-                    , El.text "and is excited to start taking some pics, "
-                    , El.text "especially to test out the range of its zoom capabilities."
+                    , El.text "and is excited to start taking some pics. "
+                    , El.text "She is especially curious to test out the range "
+                    , El.text "of its zoom capabilities."
                     ]
                 , El.paragraph paragraphAttrs
                     [ El.text "Arriving home, Pat enters her "
