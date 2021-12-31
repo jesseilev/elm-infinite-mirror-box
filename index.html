@@ -5512,7 +5512,7 @@ var $ianmackenzie$elm_geometry$Polygon2d$withHoles = F2(
 var $ianmackenzie$elm_geometry$Polygon2d$singleLoop = function (givenOuterLoop) {
 	return A2($ianmackenzie$elm_geometry$Polygon2d$withHoles, _List_Nil, givenOuterLoop);
 };
-var $author$project$Room$initLevel1 = {
+var $author$project$Room$level1 = {
 	playerItem: A2(
 		$author$project$RoomItem$RoomItem,
 		A2($ianmackenzie$elm_geometry$Point2d$meters, 0.85, 0.8),
@@ -5536,11 +5536,11 @@ var $ianmackenzie$elm_units$Length$meters = function (numMeters) {
 };
 var $author$project$Diagram$initLevel1 = A3(
 	$author$project$Diagram$init,
-	$author$project$Room$initLevel1,
+	$author$project$Room$level1,
 	$ianmackenzie$elm_geometry$Direction2d$fromAngle(
 		$ianmackenzie$elm_units$Angle$degrees(210)),
 	$ianmackenzie$elm_units$Length$meters(3));
-var $author$project$Room$initLevel2 = {
+var $author$project$Room$level2 = {
 	playerItem: A2(
 		$author$project$RoomItem$RoomItem,
 		A2($ianmackenzie$elm_geometry$Point2d$meters, -0.65, -0.9),
@@ -5571,11 +5571,11 @@ var $author$project$Room$initLevel2 = {
 };
 var $author$project$Diagram$initLevel2 = A3(
 	$author$project$Diagram$init,
-	$author$project$Room$initLevel2,
+	$author$project$Room$level2,
 	$ianmackenzie$elm_geometry$Direction2d$fromAngle(
 		$ianmackenzie$elm_units$Angle$degrees(130)),
 	$ianmackenzie$elm_units$Length$meters(5));
-var $author$project$Room$initLevel3 = {
+var $author$project$Room$level3 = {
 	playerItem: A2(
 		$author$project$RoomItem$RoomItem,
 		A2($ianmackenzie$elm_geometry$Point2d$meters, 0.35, -0.65),
@@ -5610,11 +5610,11 @@ var $author$project$Room$initLevel3 = {
 };
 var $author$project$Diagram$initLevel3 = A3(
 	$author$project$Diagram$init,
-	$author$project$Room$initLevel3,
+	$author$project$Room$level3,
 	$ianmackenzie$elm_geometry$Direction2d$fromAngle(
 		$ianmackenzie$elm_units$Angle$degrees(80)),
 	$ianmackenzie$elm_units$Length$meters(8.0));
-var $author$project$Room$initLevel4 = {
+var $author$project$Room$level4 = {
 	playerItem: A2(
 		$author$project$RoomItem$RoomItem,
 		A2($ianmackenzie$elm_geometry$Point2d$meters, 1.35, 0.5),
@@ -5635,7 +5635,7 @@ var $author$project$Room$initLevel4 = {
 };
 var $author$project$Diagram$initLevel4 = A3(
 	$author$project$Diagram$init,
-	$author$project$Room$initLevel4,
+	$author$project$Room$level4,
 	$ianmackenzie$elm_geometry$Direction2d$fromAngle(
 		$ianmackenzie$elm_units$Angle$degrees(-133)),
 	$ianmackenzie$elm_units$Length$meters(20.0));
@@ -6140,13 +6140,13 @@ var $ianmackenzie$elm_geometry$Axis2d$withDirection = F2(
 			{direction: givenDirection, originPoint: givenPoint});
 	});
 var $author$project$Sightray$nextIntersection = F2(
-	function (room, projectedSightLine) {
+	function (room, projectedSightline) {
 		var trimmedSightline = A3(
 			$ianmackenzie$elm_geometry$LineSegment2d$scaleAbout,
-			$ianmackenzie$elm_geometry$LineSegment2d$endPoint(projectedSightLine),
+			$ianmackenzie$elm_geometry$LineSegment2d$endPoint(projectedSightline),
 			0.999,
-			projectedSightLine);
-		var startPoint = $ianmackenzie$elm_geometry$LineSegment2d$startPoint(projectedSightLine);
+			projectedSightline);
+		var startPoint = $ianmackenzie$elm_geometry$LineSegment2d$startPoint(projectedSightline);
 		var nextMirrorBounceM = A2(
 			$elm$core$Maybe$map,
 			function (_v5) {
@@ -6215,7 +6215,7 @@ var $author$project$Sightray$nextIntersection = F2(
 							$author$project$Shared$segmentSamplePoints(
 								A2(
 									$elm$core$Maybe$withDefault,
-									projectedSightLine,
+									projectedSightline,
 									A2(
 										$elm$core$Maybe$map,
 										A2(
@@ -6244,8 +6244,8 @@ var $author$project$Sightray$noBounces = F2(
 		return A3($author$project$Sightray$Sightray, startPos, _List_Nil, end);
 	});
 var $author$project$Sightray$fromRoomAndProjectedPath = F2(
-	function (room, projectedPath) {
-		var _v0 = $ianmackenzie$elm_geometry$LineSegment2d$endpoints(projectedPath);
+	function (room, projectedSightline) {
+		var _v0 = $ianmackenzie$elm_geometry$LineSegment2d$endpoints(projectedSightline);
 		var projectedStart = _v0.a;
 		var projectedEnd = _v0.b;
 		var nextProjectedPath = function (bounce) {
@@ -6268,7 +6268,7 @@ var $author$project$Sightray$fromRoomAndProjectedPath = F2(
 						room,
 						nextProjectedPath(bounce))));
 		};
-		var _v1 = A2($author$project$Sightray$nextIntersection, room, projectedPath);
+		var _v1 = A2($author$project$Sightray$nextIntersection, room, projectedSightline);
 		if (_v1.$ === 'Just') {
 			if (_v1.a.$ === 'IntersectMirror') {
 				var bounce = _v1.a.a;
@@ -6492,31 +6492,6 @@ var $elm_community$list_extra$List$Extra$iterate = F2(
 		return $elm$core$List$reverse(
 			A3($elm_community$list_extra$List$Extra$iterateHelp, f, x, _List_Nil));
 	});
-var $author$project$Shared$interpReflectPoint = F3(
-	function (axis, pct, point) {
-		return function (line) {
-			return A2($ianmackenzie$elm_geometry$LineSegment2d$interpolate, line, pct);
-		}(
-			A2(
-				$ianmackenzie$elm_geometry$LineSegment2d$from,
-				point,
-				A2($ianmackenzie$elm_geometry$Point2d$mirrorAcross, axis, point)));
-	});
-var $author$project$Shared$interpReflectLine = F3(
-	function (axis, pct, line) {
-		return A2(
-			$ianmackenzie$elm_geometry$LineSegment2d$from,
-			A3(
-				$author$project$Shared$interpReflectPoint,
-				axis,
-				pct,
-				$ianmackenzie$elm_geometry$LineSegment2d$startPoint(line)),
-			A3(
-				$author$project$Shared$interpReflectPoint,
-				axis,
-				pct,
-				$ianmackenzie$elm_geometry$LineSegment2d$endPoint(line)));
-	});
 var $ianmackenzie$elm_geometry$Direction2d$from = F2(
 	function (firstPoint, secondPoint) {
 		return $ianmackenzie$elm_geometry$Vector2d$direction(
@@ -6538,9 +6513,9 @@ var $ianmackenzie$elm_geometry$Axis2d$throughPoints = F2(
 			return $elm$core$Maybe$Nothing;
 		}
 	});
-var $author$project$Sightray$interpReflectBounce = F3(
-	function (axis, pct, bounce) {
-		var newWall = A3($author$project$Shared$interpReflectLine, axis, pct, bounce.wall);
+var $author$project$Sightray$bounceMirrorAcross = F2(
+	function (axis, bounce) {
+		var newWall = A2($ianmackenzie$elm_geometry$LineSegment2d$mirrorAcross, axis, bounce.wall);
 		var newAxis = A2(
 			$elm$core$Maybe$withDefault,
 			bounce.axis,
@@ -6550,13 +6525,10 @@ var $author$project$Sightray$interpReflectBounce = F3(
 				$ianmackenzie$elm_geometry$LineSegment2d$endPoint(newWall)));
 		return {
 			axis: newAxis,
-			point: A3($author$project$Shared$interpReflectPoint, axis, pct, bounce.point),
+			point: A2($ianmackenzie$elm_geometry$Point2d$mirrorAcross, axis, bounce.point),
 			wall: newWall
 		};
 	});
-var $author$project$Sightray$bounceMirrorAcross = function (axis) {
-	return A2($author$project$Sightray$interpReflectBounce, axis, 1);
-};
 var $author$project$RoomItem$updatePos = F2(
 	function (upd, item) {
 		return _Utils_update(
@@ -6593,6 +6565,15 @@ var $author$project$Sightray$mirrorEndAcross = F2(
 					item));
 		}
 	});
+var $author$project$Sightray$endPosFromEnd = function (end) {
+	if (end.$ === 'TooFar') {
+		var p = end.a;
+		return p;
+	} else {
+		var p = end.a;
+		return p;
+	}
+};
 var $elm$core$Array$fromListHelp = F3(
 	function (list, nodeList, nodeListSize) {
 		fromListHelp:
@@ -6669,15 +6650,6 @@ var $elm$core$Array$get = F2(
 			A2($elm$core$Elm$JsArray$unsafeGet, $elm$core$Array$bitMask & index, tail)) : $elm$core$Maybe$Just(
 			A3($elm$core$Array$getHelp, startShift, index, tree)));
 	});
-var $author$project$Sightray$getEndPos = function (end) {
-	if (end.$ === 'TooFar') {
-		var p = end.a;
-		return p;
-	} else {
-		var p = end.a;
-		return p;
-	}
-};
 var $elm$core$Elm$JsArray$foldl = _JsArray_foldl;
 var $elm$core$Elm$JsArray$indexedMap = _JsArray_indexedMap;
 var $elm$core$Array$indexedMap = F2(
@@ -6735,7 +6707,7 @@ var $author$project$Sightray$bouncesWithNeighborPoints = function (ray) {
 						bounce,
 						A2(
 							$elm$core$Maybe$withDefault,
-							$author$project$Sightray$getEndPos(ray.end),
+							$author$project$Sightray$endPosFromEnd(ray.end),
 							A2(
 								$elm$core$Maybe$map,
 								function ($) {
@@ -7459,7 +7431,7 @@ var $author$project$Sightray$vertices = function (ray) {
 				ray.bounces),
 			_List_fromArray(
 				[
-					$author$project$Sightray$getEndPos(ray.end)
+					$author$project$Sightray$endPosFromEnd(ray.end)
 				])));
 };
 var $author$project$Sightray$polyline = function (ray) {
@@ -14131,12 +14103,12 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$relativeTo = function (frame) {
 			$ianmackenzie$elm_geometry$Frame2d$atOrigin));
 };
 var $author$project$Shared$svgEmpty = A2($elm$svg$Svg$g, _List_Nil, _List_Nil);
+var $author$project$RoomItem$create = $author$project$RoomItem$RoomItem;
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
 var $author$project$Shared$floatAttributeForZoom = F2(
 	function (zoomScale, f) {
 		return $elm$core$String$fromFloat(f / zoomScale);
 	});
-var $author$project$RoomItem$init = $author$project$RoomItem$RoomItem;
 var $ianmackenzie$elm_geometry$Direction2d$xComponent = function (_v0) {
 	var d = _v0.a;
 	return d.x;
@@ -14300,54 +14272,50 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$translateBy = F2(
 				[element]));
 	});
 var $elm$svg$Svg$Attributes$x = _VirtualDom_attribute('x');
-var $author$project$RoomItem$view = F2(
-	function (inFocus, item) {
-		var fontSize = $ianmackenzie$elm_units$Quantity$unwrap($author$project$RoomItem$radius) * 0.95;
-		return A2(
-			$elm$svg$Svg$g,
-			_List_Nil,
-			_List_fromArray(
-				[
+var $author$project$RoomItem$view = function (item) {
+	var fontSize = $ianmackenzie$elm_units$Quantity$unwrap($author$project$RoomItem$radius) * 0.95;
+	return A2(
+		$elm$svg$Svg$g,
+		_List_Nil,
+		_List_fromArray(
+			[
+				A2(
+				$ianmackenzie$elm_geometry_svg$Geometry$Svg$circle2d,
+				_List_fromArray(
+					[
+						$elm$svg$Svg$Attributes$strokeWidth('0.01'),
+						$elm$svg$Svg$Attributes$stroke($author$project$Shared$colors.greyVeryLight),
+						$elm$svg$Svg$Attributes$fill('none')
+					]),
+				$author$project$RoomItem$boundaryCircle(item)),
+				A2(
+				$ianmackenzie$elm_geometry_svg$Geometry$Svg$translateBy,
+				A2($ianmackenzie$elm_geometry$Vector2d$from, $ianmackenzie$elm_geometry$Point2d$origin, item.pos),
+				A2(
+					$ianmackenzie$elm_geometry_svg$Geometry$Svg$mirrorAcross,
+					A2($ianmackenzie$elm_geometry$Axis2d$through, $ianmackenzie$elm_geometry$Point2d$origin, $ianmackenzie$elm_geometry$Direction2d$x),
 					A2(
-					$ianmackenzie$elm_geometry_svg$Geometry$Svg$circle2d,
-					_List_fromArray(
-						[
-							$elm$svg$Svg$Attributes$strokeWidth('0.01'),
-							$elm$svg$Svg$Attributes$stroke($author$project$Shared$colors.greyVeryLight),
-							$elm$svg$Svg$Attributes$fill('none')
-						]),
-					$author$project$RoomItem$boundaryCircle(item)),
-					A2(
-					$ianmackenzie$elm_geometry_svg$Geometry$Svg$translateBy,
-					A2($ianmackenzie$elm_geometry$Vector2d$from, $ianmackenzie$elm_geometry$Point2d$origin, item.pos),
-					A2(
-						$ianmackenzie$elm_geometry_svg$Geometry$Svg$mirrorAcross,
-						A2($ianmackenzie$elm_geometry$Axis2d$through, $ianmackenzie$elm_geometry$Point2d$origin, $ianmackenzie$elm_geometry$Direction2d$x),
-						A2(
-							$elm$svg$Svg$text_,
-							_List_fromArray(
-								[
-									$elm$svg$Svg$Attributes$fontSize(
-									$elm$core$String$fromFloat(fontSize)),
-									$elm$svg$Svg$Attributes$x(
-									$elm$core$String$fromFloat((-0.5) * fontSize)),
-									$elm$svg$Svg$Attributes$alignmentBaseline('central')
-								]),
-							_List_fromArray(
-								[
-									$elm$svg$Svg$text(item.emoji)
-								]))))
-				]));
-	});
+						$elm$svg$Svg$text_,
+						_List_fromArray(
+							[
+								$elm$svg$Svg$Attributes$fontSize(
+								$elm$core$String$fromFloat(fontSize)),
+								$elm$svg$Svg$Attributes$x(
+								$elm$core$String$fromFloat((-0.5) * fontSize)),
+								$elm$svg$Svg$Attributes$alignmentBaseline('central')
+							]),
+						_List_fromArray(
+							[
+								$elm$svg$Svg$text(item.emoji)
+							]))))
+			]));
+};
 var $author$project$Room$view = F2(
 	function (zoomScale, model) {
-		var viewRoomItem = F2(
-			function (flag, item) {
-				return A2(
-					$author$project$RoomItem$view,
-					flag,
-					A2($author$project$RoomItem$init, item.pos, item.emoji));
-			});
+		var viewRoomItem = function (item) {
+			return $author$project$RoomItem$view(
+				A2($author$project$RoomItem$create, item.pos, item.emoji));
+		};
 		var roomSvg = A2(
 			$elm$svg$Svg$g,
 			_List_Nil,
@@ -14364,13 +14332,10 @@ var $author$project$Room$view = F2(
 								$elm$svg$Svg$Attributes$stroke('lightGrey')
 							]),
 						A2($ianmackenzie$elm_geometry$Polygon2d$placeIn, $author$project$Shared$roomFrame, model.wallShape)),
-						A2(viewRoomItem, false, model.playerItem),
-						A2(viewRoomItem, true, model.targetItem)
+						viewRoomItem(model.playerItem),
+						viewRoomItem(model.targetItem)
 					]),
-				A2(
-					$elm$core$List$map,
-					viewRoomItem(false),
-					model.trees)));
+				A2($elm$core$List$map, viewRoomItem, model.trees)));
 		return roomSvg;
 	});
 var $author$project$Sightray$AllAngles = {$: 'AllAngles'};
@@ -14539,7 +14504,7 @@ var $author$project$Shared$interpolateLists = F4(
 var $author$project$Sightray$updateEndPos = F2(
 	function (upd, end) {
 		var newPos = upd(
-			$author$project$Sightray$getEndPos(end));
+			$author$project$Sightray$endPosFromEnd(end));
 		if (end.$ === 'TooFar') {
 			return $author$project$Sightray$TooFar(newPos);
 		} else {
@@ -14557,7 +14522,7 @@ var $author$project$Sightray$interpolateFrom = F3(
 					return A3(
 						$author$project$Shared$interpolatePointFrom,
 						ep1,
-						$author$project$Sightray$getEndPos(ray2.end),
+						$author$project$Sightray$endPosFromEnd(ray2.end),
 						pct);
 				},
 				ray1.end),
@@ -14606,7 +14571,7 @@ var $author$project$Sightray$endPos = A2(
 	function ($) {
 		return $.end;
 	},
-	$author$project$Sightray$getEndPos);
+	$author$project$Sightray$endPosFromEnd);
 var $author$project$Sightray$lineAttrsDefault = function (zoomScale) {
 	return _List_fromArray(
 		[
@@ -15567,7 +15532,7 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$triangle2d = F2(
 				attributes),
 			_List_Nil);
 	});
-var $author$project$Sightray$triangleForArc = function (arc) {
+var $author$project$Shared$triangleForArc = function (arc) {
 	return A3(
 		$ianmackenzie$elm_geometry$Triangle2d$from,
 		$ianmackenzie$elm_geometry$Arc2d$centerPoint(arc),
@@ -15678,7 +15643,7 @@ var $author$project$Sightray$viewAngle = F2(
 						[
 							$elm$svg$Svg$Attributes$fill(color)
 						]),
-					$author$project$Sightray$triangleForArc(arc)),
+					$author$project$Shared$triangleForArc(arc)),
 					A4(
 					$author$project$Shared$viewLabel,
 					$author$project$Shared$colors.greyDark,
@@ -16295,43 +16260,28 @@ var $elm_community$list_extra$List$Extra$inits = A2(
 		}),
 	_List_fromArray(
 		[_List_Nil]));
-var $author$project$RoomItem$interpReflect = F3(
-	function (axis, pct, item) {
-		return A2(
-			$author$project$RoomItem$updatePos,
-			A2($author$project$Shared$interpReflectPoint, axis, pct),
-			item);
-	});
-var $ianmackenzie$elm_geometry$Polygon2d$vertices = function (polygon) {
-	return $elm$core$List$concat(
-		A2(
-			$elm$core$List$cons,
-			$ianmackenzie$elm_geometry$Polygon2d$outerLoop(polygon),
-			$ianmackenzie$elm_geometry$Polygon2d$innerLoops(polygon)));
+var $ianmackenzie$elm_geometry$Polygon2d$mirrorAcross = function (axis) {
+	return A2(
+		$ianmackenzie$elm_geometry$Polygon2d$mapVertices,
+		$ianmackenzie$elm_geometry$Point2d$mirrorAcross(axis),
+		true);
 };
-var $author$project$Shared$interpReflectPolygon = F3(
-	function (axis, pct, pg) {
-		return $ianmackenzie$elm_geometry$Polygon2d$singleLoop(
-			A2(
-				$elm$core$List$map,
-				A2($author$project$Shared$interpReflectPoint, axis, pct),
-				$ianmackenzie$elm_geometry$Polygon2d$vertices(pg)));
-	});
-var $author$project$Room$interpReflect = F3(
-	function (axis, pct, model) {
+var $author$project$RoomItem$mirrorAcross = function (axis) {
+	return $author$project$RoomItem$updatePos(
+		$ianmackenzie$elm_geometry$Point2d$mirrorAcross(axis));
+};
+var $author$project$Room$mirrorAcross = F2(
+	function (axis, room) {
 		return {
-			playerItem: A3($author$project$RoomItem$interpReflect, axis, pct, model.playerItem),
-			targetItem: A3($author$project$RoomItem$interpReflect, axis, pct, model.targetItem),
+			playerItem: A2($author$project$RoomItem$mirrorAcross, axis, room.playerItem),
+			targetItem: A2($author$project$RoomItem$mirrorAcross, axis, room.targetItem),
 			trees: A2(
 				$elm$core$List$map,
-				A2($author$project$RoomItem$interpReflect, axis, pct),
-				model.trees),
-			wallShape: A3($author$project$Shared$interpReflectPolygon, axis, pct, model.wallShape)
+				$author$project$RoomItem$mirrorAcross(axis),
+				room.trees),
+			wallShape: A2($ianmackenzie$elm_geometry$Polygon2d$mirrorAcross, axis, room.wallShape)
 		};
 	});
-var $author$project$Room$mirrorAcross = function (axis) {
-	return A2($author$project$Room$interpReflect, axis, 1);
-};
 var $author$project$Sightray$projections = A2($elm$core$Basics$composeR, $author$project$Sightray$projectionsAndReflections, $elm$core$Tuple$first);
 var $author$project$Sightray$hallway = F2(
 	function (room, ray) {
@@ -16370,6 +16320,13 @@ var $author$project$RoomItem$interpolateFrom = F3(
 				},
 				item1));
 	});
+var $ianmackenzie$elm_geometry$Polygon2d$vertices = function (polygon) {
+	return $elm$core$List$concat(
+		A2(
+			$elm$core$List$cons,
+			$ianmackenzie$elm_geometry$Polygon2d$outerLoop(polygon),
+			$ianmackenzie$elm_geometry$Polygon2d$innerLoops(polygon)));
+};
 var $author$project$Shared$interpolatePolygonFrom = F3(
 	function (p1, p2, pct) {
 		return $ianmackenzie$elm_geometry$Polygon2d$singleLoop(
