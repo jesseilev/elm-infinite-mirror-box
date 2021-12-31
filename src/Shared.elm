@@ -58,6 +58,30 @@ svgFrame =
         |> Frame2d.reverseY
         
 
+viewLabel : Point -> Vector -> String -> Svg msg
+viewLabel startPoint vector text = 
+    let 
+        endPoint = Point2d.translateBy vector startPoint 
+        textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
+        fontSize = 0.125
+    in
+    Svg.g []
+        [ Svg.circle2d [ Attr.fill "black" ]
+            (Circle2d.atPoint startPoint (Length.meters 0.02))
+        , Svg.lineSegment2d 
+            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth (String.fromFloat 0.01) ]
+            (LineSegment2d.from startPoint endPoint)
+        , Svg.text_ 
+            [ Attr.fontSize <| String.fromFloat fontSize
+            , Attr.x <| String.fromFloat (-0.5 * fontSize)
+            , Attr.fill "black"
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ Svg.text text ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
+        ]
+
 playerFrame : Point -> Angle -> Frame2d Meters SceneCoords { defines : SceneCoords }
 playerFrame viewerPos viewerAngle = 
     roomFrame
@@ -292,5 +316,5 @@ debugCircle color pos =
         (Circle2d.atPoint pos (Length.meters 0.125))
 
 
-floatAttribute zoomScale f = 
+floatAttributeForZoom zoomScale f = 
     f / zoomScale |> String.fromFloat

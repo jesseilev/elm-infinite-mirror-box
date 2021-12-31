@@ -2,29 +2,29 @@
 # Todo
 
 ## Bugs
-- 1 clicking during a transition starts the transition over
+- target hit detection stops triggering after first attempt
+- some rays not projecting properly
 - 2 room reflection animation sometimes collapses into a single point
 - 1 camera emoji is tilted wrong in reflected rooms
-- 1 when you click the final animation step it gets weird
 - 1 when sightray hits a corner the bounce escapes the room
-- 1 toplevel layout isnt centering in the page
 
 ## Features
 - 2 label distance of straight portion during animation
 - 3 label ray endpoint with distance / photo attempt feedback
 - 1 put back the camera emoji and rotation thing
 - 2 responsive
-- 1 better visual feedback, mouse hovers, cursor hand, etc
-- 1 after success animation you can drag to look around again and the hallway responds
-- 3 use requestanimationframe for animations
 - roomitem cursor
+- 1 after success animation you can drag to look around again and the hallway responds
+- 1 better visual feedback, mouse hovers, cursor hand, etc
+- 3 use requestanimationframe for animations
 
 ## Internal
-- 1 Diagram module
+- sightray view projectionattrs is stupid
+- reusable helper for svg text
+- roomitem view in focus nonesense
 - Sightray.fromRoomAndProjectedPath is kind of hacky because recursive calls return unfinished sightrays
 - rename MirrorBounce MirrorIntersection?
 - 2 include angle info in MirrorBounce? (and neighbor points?)
-- 1 Main.updatePhotoAttempt is checking itemHit itself, rather than looking at RayEnd
 - ray endpoint label in Main should move to Sightray
 - mouseclickat 
 - 1 make getters instead of using .accessors eg ray.startPos

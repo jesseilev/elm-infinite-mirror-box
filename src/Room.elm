@@ -63,12 +63,12 @@ initLevel1 : Model
 initLevel1 = 
     { wallShape = 
         Polygon2d.singleLoop 
-            [ Point2d.meters -2.25 -1.5
-            , Point2d.meters 1.5 -2.5
+            [ Point2d.meters -2.0 -1.5
+            , Point2d.meters 1.5 -2.1
             , Point2d.meters 2.0 1.0
-            , Point2d.meters -2.25 2.25
+            , Point2d.meters -2.0 2.0
             ]
-    , playerItem = RoomItem (Point2d.meters 0.85 0.85) RoomItem.emojis.cat
+    , playerItem = RoomItem (Point2d.meters 0.85 0.8) RoomItem.emojis.cat
     , targetItem = RoomItem (Point2d.meters -0.5 -0.7) RoomItem.emojis.parrot
     , trees = []
     }
@@ -180,7 +180,7 @@ view zoomScale model =
             Svg.g [] <| 
                 [ Svg.polygon2d 
                     [ Attr.fill "none"
-                    , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.03
+                    , Attr.strokeWidth <| Shared.floatAttributeForZoom zoomScale 0.03
                     , Attr.stroke "lightGrey"
                     -- , Attr.opacity "0.5"
                     ]

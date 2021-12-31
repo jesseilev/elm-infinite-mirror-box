@@ -31,7 +31,12 @@ type alias Model =
 init : () -> (Model, Cmd Msg)
 init _ =
     { levelIndex = 0
-    , levels = [ Diagram.initLevel1, Diagram.initLevel2, Diagram.initLevel3, Diagram.initLevel4 ]
+    , levels = 
+        [ Diagram.initLevel1
+        , Diagram.initLevel2
+        , Diagram.initLevel3
+        , Diagram.initLevel4 
+        ]
     }
         |> Shared.noCmds
 
@@ -39,7 +44,7 @@ diagram : Model -> Diagram.Model
 diagram model = 
     model.levels 
         |> List.getAt model.levelIndex
-        |> Maybe.withDefault Diagram.initLevel3
+        |> Maybe.withDefault Diagram.initLevel1
 
 
 -- SUBSCRIPTIONS -- 
@@ -71,7 +76,7 @@ update msg model =
                 |> Shared.noCmds
 
         NextLevel -> 
-            { model | levelIndex = min (List.length model.levels) (model.levelIndex + 1) }
+            { model | levelIndex = min (List.length model.levels - 1) (model.levelIndex + 1) }
                 |> updateDiagramAtIndex model.levelIndex Diagram.reset
                 |> Shared.noCmds
 
@@ -130,7 +135,7 @@ viewDiagramContainer model =
         , Border.color <| veryLightGrey
         ] 
         [ viewLevelControls model.levelIndex
-        , El.column []  
+        , El.column [ El.padding 10 ]  
             [ instructionsParagraph (diagram model).sightDistance
             , El.el 
                 [ El.centerX ] 
@@ -151,9 +156,10 @@ viewLevelControls : Int -> Element Msg
 viewLevelControls levelIndex = 
     El.el 
         [ Region.heading 3
-        , Font.size 24
+        , Font.size 20
+        , Font.bold
         , El.centerX
-        , El.paddingXY 20 20
+        , El.paddingXY 15 15
         , El.width El.fill
         , Background.color veryLightGrey 
         , Font.color darkGrey
@@ -174,7 +180,7 @@ instructionsParagraph sightDistance =
         , El.paddingXY 40 40
         -- , Background.color lightGrey
         ]
-        [ El.text "Your challenge: Click and drag the light beam to aim Pat's camera "
+        [ El.text "Your challenge: Click and drag the beginning of the light beam to aim Pat's camera "
         , El.text "at a bird in the mirror that appears to be " 
         , El.el 
             [ Font.bold

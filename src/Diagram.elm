@@ -94,7 +94,7 @@ type alias SuccessAnimation =
 initLevel1 : Model 
 initLevel1 = 
     init Room.initLevel1
-        (Direction2d.fromAngle (Angle.degrees 190))
+        (Direction2d.fromAngle (Angle.degrees 210))
         (Length.meters 3)
 
 initLevel2 : Model 
@@ -135,6 +135,7 @@ reset model =
         , dragging = False
         , ticks = 0
         , photoAttempt = Nothing
+        , sightDirection = Direction2d.negativeX
     }
 
 
@@ -166,7 +167,7 @@ rayNormal model =
             model.sightDistance
         )
 
-
+rayDistance : Model -> Float
 rayDistance model =
     rayNormal model 
         |> Sightray.length
@@ -180,6 +181,11 @@ rayDistance model =
         |> (\l -> l / 100)
 
 
+projectedSightline : Model -> LineSegment
+projectedSightline model = 
+    Shared.projectedSightline model.room.playerItem.pos model.sightDirection model.sightDistance
+
+
 -- UPDATE --
 
 type Msg 
@@ -190,7 +196,7 @@ type Msg
     | MouseClickAt Point
     | MouseHoverOver (Maybe HoverArea)
     | AdjustZoom Float
-    | StepAnimation Int
+    | StepAnimation
     | Tick
 
 update : Msg -> Model -> Model
@@ -209,41 +215,50 @@ update msg model =
 
         DragStart -> 
             { model | dragging = True, mouseDragPos = Nothing }
-                -- |> updateRoomStatus
 
         DragStop -> 
-            { model | dragging = False, mouseDragPos = Nothing }
-                |> updatePhotoAttempt
-                -- |> updateRoomStatus
-
-        MouseClickAt sceneOffsetPos -> 
-            model 
-                |> (if Maybe.isNothing (successAnimation model) then updatePhotoAttempt else identity)
+            { model 
+                | dragging = False, mouseDragPos = Nothing 
+                , photoAttempt = Just (nextPhotoAttempt model)
+            }
 
         MouseHoverOver hover -> 
             { model | mouseHoverArea = hover }
 
-        StepAnimation stepDiff ->
-            model |> updateSuccessAnimation (\ani -> 
-                { ani | transitionPct = Just 0.0 }
-            )
+        StepAnimation ->
+            successAnimation model 
+                |> Maybe.map (\ani -> 
+                    { ani | step = ani.step + 1, transitionPct = Just 0.0 }
+                )
+                |> Maybe.map (\newAni -> 
+                    if checkAnimationFinished newAni model then
+                        model
+                    else 
+                        model |> updateSuccessAnimation (\_ -> newAni)
+                )
+                |> Maybe.withDefault model
 
         Tick -> 
-            { model | ticks = model.ticks + 1 }
-                |> updateSuccessAnimation (\ani -> 
-                    case ani.transitionPct of 
-                        Nothing -> ani
-                        Just pct -> pct + 0.02 |> (\newPct -> 
-                            if newPct < 1.0 then 
-                                { ani | transitionPct = Just newPct }
-                            else 
-                                { ani | step = ani.step + 1, transitionPct = Just 0 }
-                            )
+            successAnimation model
+                |> Maybe.andThen .transitionPct 
+                |> Maybe.map ((+) 0.02)
+                |> Maybe.map (\newPct -> 
+                    if newPct < 1.0 then
+                        model |> updateSuccessAnimation (\ani -> 
+                            { ani | transitionPct = Just newPct }
+                        )
+                    else 
+                        model |> update StepAnimation
                 )
+                |> Maybe.withDefault model 
+                |> (\newModel -> { newModel | ticks = model.ticks + 1 })
 
         _ ->
             model
 
+checkAnimationFinished : SuccessAnimation -> Model -> Bool
+checkAnimationFinished animation model = 
+    animation.step >= List.length (Sightray.uncurledSeries (rayNormal model)) - 1
 
 updatePlayerDirection : Model -> Point -> Point -> Model
 updatePlayerDirection model mousePos prevMousePos =
@@ -253,42 +268,36 @@ updatePlayerDirection model mousePos prevMousePos =
         |> Maybe.withDefault playerAngle
         |> (\angle -> { model | sightDirection = Direction2d.fromAngle angle })
 
-updatePhotoAttempt : Model -> Model 
-updatePhotoAttempt model = 
+nextPhotoAttempt : Model -> PhotoAttempt 
+nextPhotoAttempt model = 
     let 
         ray = 
             rayNormal model
 
-        sightEnd = 
-            ray |> Sightray.endPos 
-
-        itemHit = 
-            Room.allItems model.room
-                |> List.filter (RoomItem.containsPoint sightEnd)
-                |> List.head -- TODO handle more than one? shouldnt be possible
+        (_, itemHitM) = 
+            case ray.end of 
+                Sightray.TooFar p -> (p, Nothing)
+                Sightray.EndAtItem p i -> (p, Just i)
 
         targetHit = 
-            Sightray.endItem ray == Just (Room.targetItem model.room)
+            itemHitM == Just (Room.targetItem model.room)
                 && closeEnough (Sightray.length ray) model.sightDistance
-
-        newPhotoAttempt = 
-            case (model.photoAttempt, targetHit) of 
-                (Nothing, True) -> 
-                    Just <| PhotoSuccess (SuccessAnimation 0 (Just 0))
-                -- (Nothing, Just False) ->
-                --     Just <| PhotoFail (WrongItem itemHit)
-                -- (Nothing, Nothing) ->
-                --     Just <| PhotoFail (NoItem)
-                --     -- TODO handle other fail types
-                _ ->
-                    model.photoAttempt
     in
-    { model | photoAttempt = newPhotoAttempt }
+    case (successAnimation model, targetHit, itemHitM) of 
+        (Just alreadyExistingAni, _, _) -> 
+            PhotoSuccess alreadyExistingAni
+        (Nothing, False, Just item) ->
+            PhotoFail (WrongItem item)
+        (Nothing, _, Nothing) ->
+            PhotoFail NoItem
+        (Nothing, True, _) -> 
+            PhotoSuccess (SuccessAnimation 0 (Just 0))
     
 updateSuccessAnimation : (SuccessAnimation -> SuccessAnimation) -> Model -> Model
 updateSuccessAnimation upd model = 
     case model.photoAttempt of 
-        Just (PhotoSuccess ani) -> { model | photoAttempt = Just (PhotoSuccess (upd ani)) }
+        Just (PhotoSuccess ani) -> 
+            { model | photoAttempt = Just (PhotoSuccess (upd ani)) }
         _ -> model
 
 closeEnough : Length -> Length -> Bool
@@ -309,10 +318,18 @@ closeEnough =
 
 subscriptions : Model -> Sub Msg
 subscriptions model = 
-    if 
-        Maybe.isJust model.mouseHoverArea 
-            || Maybe.isJust (successAnimation model |> Maybe.andThen .transitionPct)
-    then
+    let 
+        animationM = successAnimation model
+
+        animating = 
+            animationM
+                |> Maybe.map (\ani ->
+                    Maybe.isJust ani.transitionPct 
+                        && (checkAnimationFinished ani model == False)
+                )
+                |> Maybe.withDefault False
+    in
+    if animating || Maybe.isJust model.mouseHoverArea then
         Time.every 50 (\_ -> Tick)
     else 
         Sub.none
@@ -324,11 +341,17 @@ subscriptions model =
 
 -- VIEW --
 
+-- check if animating at all 
+    -- subs
+    -- mouse up
+-- check if success and finished
+    -- view success
+
 view : Model -> Html Msg
 view model =
     Html.div 
         [ Pointer.onUp (\_ -> 
-            if Maybe.isJust (successAnimation model) then StepAnimation 1 else DragStop)
+            if Maybe.isNothing (successAnimation model) then DragStop else NoOp )
         , Pointer.onLeave (\_ -> DragStop)
         , Pointer.onMove (\event -> 
             if model.dragging then 
@@ -357,21 +380,10 @@ viewDiagramNormal model =
         []
         [ Room.view (currentZoomScale model) model.room
         , viewBeam (successAnimation model) model
+        , viewPhotoAttempt model
         ]
         |> Svg.at (pixelsPerMeterWithZoomScale 1)
         |> Svg.relativeTo Shared.svgFrame
-
-
-rayPairForAnimation : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
-rayPairForAnimation animation ray = 
-    ray 
-        |> Sightray.uncurledSeries
-        |> Array.fromList
-        |> (\rs -> 
-            ( Array.get animation.step rs |> Maybe.withDefault ray
-            , Array.get (animation.step + 1) rs
-            )
-        )
 
 viewDiagramSuccess : Model -> SuccessAnimation -> Svg Msg
 viewDiagramSuccess model animation = 
@@ -413,10 +425,42 @@ viewDiagramSuccess model animation =
             |> Svg.g [ Attr.opacity "0.4" ]
         , Room.view (currentZoomScale model) model.room
         , viewBeam (Just animation) model
+        -- , viewPhotoAttempt model
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
         |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
         |> Svg.relativeTo Shared.svgFrame
+
+viewPhotoAttempt : Model -> Svg Msg
+viewPhotoAttempt model = 
+    case nextPhotoAttempt model of 
+        PhotoSuccess animation ->
+            rayPairForAnimation animation (rayNormal model)
+                |> Tuple.first
+                |> Sightray.endItem
+                |> Maybe.map (\item -> 
+                    Svg.circle2d 
+                        [ Attr.stroke Shared.colors.yellow1
+                        , Attr.strokeWidth "0.02"
+                        , Attr.fill "none"
+                        ]
+                        (Circle2d.atPoint item.pos RoomItem.radius)
+                )
+                |> Maybe.withDefault Shared.svgEmpty
+        _ -> Shared.svgEmpty
+
+
+rayPairForAnimation : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
+rayPairForAnimation animation ray = 
+    ray 
+        |> Sightray.uncurledSeries
+        |> Array.fromList
+        |> (\rs -> 
+            ( Array.get animation.step rs |> Maybe.withDefault ray
+            , Array.get (animation.step + 1) rs
+            )
+        )
+
 
 pctForRoom = 
     clamp 0 0.5 >> (\n -> n * 2) >> Ease.inOutCubic
@@ -437,7 +481,7 @@ viewBeam animationM model =
             , zoomScale = currentZoomScale model
             }
 
-        gAttrs = 
+        draggableAttrs = 
             if Maybe.isNothing animationM then 
                 [ Attr.cursor (if model.dragging then "grabbing" else "grab") 
                 , Pointer.onDown (\_ -> if Maybe.isNothing animationM then DragStart else NoOp)
@@ -453,15 +497,11 @@ viewBeam animationM model =
                 |> Maybe.map (\(r, rM) -> Maybe.withDefault r rM)
                 |> Maybe.withDefault beamRay
 
+        zoomScale = currentZoomScale model
     in 
-    Svg.g gAttrs
+    Svg.g []
         (List.concat
-            [ [ ray -- draw a thick invisible ray behind the others to detect the cursor consistently 
-                |> Sightray.viewWithOptions (options False 
-                    [ Attr.opacity "0", Attr.strokeDasharray "0", Attr.strokeWidth "0.25"]
-                )
-              ]
-            , Sightray.beam model.room (projectedSightline model) -- the yellow beam rays
+            [ Sightray.beam model.room (projectedSightline model) -- the yellow beam rays
                 |> List.map transitionIfAnimating
                 |> List.indexedMap (\i -> 
                     Sightray.viewWithOptions (options False 
@@ -470,16 +510,24 @@ viewBeam animationM model =
                                 Shared.colors.yellowDark 
                             else 
                                 Shared.colors.yellowLight
-                        , Attr.strokeDashoffset <| Shared.floatAttribute 1 
+                        , Attr.strokeDashoffset <| String.fromFloat 
                             (toFloat i + (toFloat (model.ticks) * 0.005))
-                        , Attr.strokeDasharray <| Shared.floatAttribute 1 
+                        , Attr.strokeDasharray <| String.fromFloat 
                             (i |> modBy 3 |> toFloat |> ((*) 0.03) |> ((+) 0.07))
-                        , Attr.strokeWidth <| Shared.floatAttribute (currentZoomScale model) 0.0075
+                        , Attr.strokeWidth <| Shared.floatAttributeForZoom zoomScale 0.0075
                         ]
                     )
                 )
             , [ ray -- the "true" ray, invisible but showing angles during mouse drag
                 |> Sightray.viewWithOptions (options model.dragging [ Attr.opacity "0"]) 
+              , ray -- a thick invisible line over the initial straight portion to detect the cursor
+                |> Sightray.viewProjectionWithOptions
+                    { angleLabels = Sightray.NoAngles 
+                    , projectionAttributes = [] 
+                    , attributes = draggableAttrs ++
+                        [ Attr.opacity "0", Attr.strokeDasharray "0", Attr.strokeWidth "0.25"]
+                    , zoomScale = currentZoomScale model 
+                    }
               ]
             ]
         )
@@ -495,44 +543,13 @@ transitionRay animation curledRay =
             )
         )
 
-projectedSightline model = 
-    Shared.projectedSightline model.room.playerItem.pos model.sightDirection model.sightDistance
-
-rayEndpointLabel ray = 
-    let 
-        itemM = 
-            Sightray.endItem ray
-        center = 
-            itemM |> Maybe.map .pos |> Maybe.withDefault (Sightray.endPos ray)
-            
-    in
-    Svg.g [] 
-        [ Svg.circle2d 
-            [ Attr.fill <| if Maybe.isJust itemM then "none" else "white"
-            , Attr.strokeWidth "0.01"
-            , Attr.stroke "black"
-            ]
-            (Circle2d.atPoint center RoomItem.radius)
-        , Svg.text_ 
-            [ Attr.fontSize "0.125" --(String.fromFloat "fontSize")
-            , Attr.x (-0.5 * 0.25 |> String.fromFloat)
-            , Attr.fill "black"
-            , Attr.alignmentBaseline "central"
-            ] 
-            [ "8m"
-                |> Svg.text 
-            ]
-            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
-            |> Svg.translateBy (Vector2d.from Point2d.origin center)
-        ]
-
 -- Frame, Units, Conversions --
 
 pixelsPerMeterWithZoomScale : Float -> Quantity Float (Quantity.Rate Pixels Meters)
 pixelsPerMeterWithZoomScale zoomScale = 
     Shared.pixelsPerMeter |> Quantity.multiplyBy zoomScale
 
-mouseToSceneCoords : Float -> (Float, Float) -> Point2d Meters SceneCoords
+mouseToSceneCoords : Float -> (Float, Float) -> Point
 mouseToSceneCoords zoomScale (x, y) = 
     Point2d.pixels x y
         |> Point2d.placeIn Shared.svgFrame

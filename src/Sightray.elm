@@ -48,7 +48,6 @@ type alias MirrorBounce =
     }
 
 
-
 -- Constructors -- 
 
 noBounces : Point -> RayEnd -> Sightray
@@ -102,8 +101,17 @@ mirrorAcross axis ray =
     in
     { startPos = reflectPoint ray.startPos
     , bounces = List.map reflectBounce ray.bounces
-    , end = updateEndPos reflectPoint ray.end 
+    , end = mirrorEndAcross axis ray.end
     }
+
+mirrorEndAcross : Axis -> RayEnd -> RayEnd 
+mirrorEndAcross axis end = 
+    let reflectPoint = Point2d.mirrorAcross axis in
+    case end of 
+        TooFar pos -> TooFar (reflectPoint pos)
+        EndAtItem pos item -> 
+            EndAtItem (reflectPoint pos) 
+                (item |> RoomItem.setPos (reflectPoint pos))
 
 
 updateEndPos : (Point -> Point) -> RayEnd -> RayEnd
@@ -185,29 +193,6 @@ type Intersection
     = IntersectMirror MirrorBounce
     | IntersectItem Point RoomItem
 
--- tail : Sightray -> Maybe (MirrorBounce, Sightray)
--- tail ray =
---     case ray.bounces of 
---         [] -> Nothing 
---         b :: bs ->
---             { start = MirrorProjection b, bounces = bs , end = ray.end }
---                 |> (\r -> Just (b, r))
-
--- -- all the steps in the unfolding animation 
--- -- from totally real at the beginning to totally projected at the end
--- unravel : Sightray -> List Sightray
--- unravel ray =
---     ray :: 
---         (tail ray 
---             |> Maybe.map (\(bounce, tailRay) -> 
---                 mirrorAcross bounce.axis tailRay |> unravel
---             )
---             |> Maybe.withDefault []
---         )
--- -- TODO refactor using
--- -- tails ray == [ ray, tail ray, tail tail ray, ... ]
--- -- unravel ray = tails ray |> fold (mirror each thing across the previous bounce)
-
 uncurl : Sightray -> Maybe Sightray 
 uncurl ray = 
     projectionsAndReflections ray
@@ -216,7 +201,7 @@ uncurl ray =
                 |> Maybe.map .axis
                 |> Maybe.map (\axis -> 
                     ( List.map (bounceMirrorAcross axis) refs
-                    , updateEndPos (Point2d.mirrorAcross axis) ray.end
+                    , mirrorEndAcross axis ray.end
                     )
                 )
                 |> Maybe.map (\(newRefs, newEnd) -> 
@@ -252,9 +237,11 @@ isProjection (prev, bounce, next) =
         (Direction2d.from bounce.point next)
         |> Maybe.withDefault False
 
+projections : Sightray -> List MirrorBounce
 projections = 
     projectionsAndReflections >> Tuple.first
 
+reflections : Sightray -> List MirrorBounce
 reflections = 
     projectionsAndReflections >> Tuple.second
 
@@ -303,6 +290,34 @@ bouncesWithAngles ray =
                 |> (\a -> (bounce, a))
         )
 
+beam : Room.Model -> LineSegment -> List Sightray
+beam room sightline = 
+    let 
+        (sightStart, sightEnd) = LineSegment2d.endpoints sightline
+        beamRay angle =
+            Direction2d.from sightStart sightEnd |> Maybe.map (\sightDirection ->
+                Direction2d.rotateBy angle sightDirection
+                    |> (\dir -> 
+                        Shared.projectedSightline sightStart dir 
+                            (LineSegment2d.length sightline)
+                    )
+                    |> fromRoomAndProjectedPath room
+            )
+        
+        numRays = 10
+
+        angleIncrement =  
+            let 
+                sAdjacent = LineSegment2d.length sightline |> Quantity.unwrap
+                sOpposite = RoomItem.radius |> Quantity.unwrap
+            in
+            atan (sOpposite / sAdjacent) / (toFloat numRays * 0.5)
+    in
+    List.initialize numRays (\i -> (toFloat i - (toFloat numRays * 0.5)) * angleIncrement)
+        |> List.map Angle.radians
+        |> List.map beamRay
+        |> Maybe.values
+
 angleArcs : Sightray -> List (Arc, MirrorBounce, Arc)
 angleArcs ray = 
     let 
@@ -327,8 +342,6 @@ angleArcs ray =
     bouncesWithNeighborPoints ray 
         |> List.map (\(prev, bounce, next) -> ( mkWedge bounce prev, bounce, mkWedge bounce next )) 
 
-type alias AngleWedge = ( Angle, Arc )
-
 
 angleColor : Angle -> Color
 angleColor angle = 
@@ -344,7 +357,6 @@ angleColor angle =
 
 angleArcRadius = Length.meters 0.25
 arcLabelDistanceScale = 1.65
-
 
 triangleForArc arc = 
     Triangle2d.from (Arc2d.centerPoint arc)
@@ -392,6 +404,7 @@ bounceMirrorAcross : Axis -> MirrorBounce -> MirrorBounce
 bounceMirrorAcross axis =
     interpReflectBounce axis 1
 
+
 -- VIEW 
 
 type alias ViewOptions msg = 
@@ -404,7 +417,6 @@ type alias ViewOptions msg =
 type AngleLabels 
     = NoAngles 
     | AllAngles 
-    | OnlyReflectionAngles
 
 defaultOptions : ViewOptions msg 
 defaultOptions = 
@@ -434,57 +446,57 @@ viewWithOptions options ray =
                     )
             )
             |> Polyline2d.fromVertices
-            |> Svg.polyline2d 
-                (lineAttrsDefault options.zoomScale ++ options.attributes ++ options.projectionAttributes)
+            |> Svg.polyline2d (lineAttrs options.zoomScale options.attributes)
         , refs 
             |> List.map .point 
             |> (\vs -> vs ++ [endPos ray])
             |> Polyline2d.fromVertices
             |> Svg.polyline2d (lineAttrsDefault options.zoomScale ++ options.attributes)
-        , case options.angleLabels of 
-            AllAngles -> viewAngles ray
-            -- OnlyReflectionAngles -> viewAngles ray -- TODO
-            _ -> Shared.svgEmpty
+        -- , case options.angleLabels of 
+        --     AllAngles -> 
+        --         Svg.g [] 
+        --             [ viewAngles ray
+        --             , distanceLabel ray
+        --             ]
+        --     _ -> Shared.svgEmpty
         ]
 
-
-beam : Room.Model -> LineSegment -> List Sightray
-beam room sightline = 
-    let 
-        (sightStart, sightEnd) = LineSegment2d.endpoints sightline
-        beamRay angle =
-            Direction2d.from sightStart sightEnd |> Maybe.map (\sightDirection ->
-                Direction2d.rotateBy angle sightDirection
-                    |> (\dir -> 
-                        Shared.projectedSightline sightStart dir 
-                            (LineSegment2d.length sightline)
-                    )
-                    |> fromRoomAndProjectedPath room
+distanceLabel ray = 
+    Svg.g [] 
+        [ Svg.circle2d
+            [ Attr.fill "none", Attr.strokeWidth "0.01", Attr.stroke "black" ]
+            (Circle2d.atPoint (endPos ray) RoomItem.radius)
+        , Shared.viewLabel (endPos ray) (Vector2d.meters 0 0.35) 
+            (length ray 
+                |> Length.inCentimeters 
+                |> (\c -> c / 100) 
+                |> round
+                |> String.fromInt
+                |> (\s -> s ++ " m")
             )
-        
-        numRays = 10
+        ]
 
-        angleIncrement =  
-            let 
-                sAdjacent = LineSegment2d.length sightline |> Quantity.unwrap
-                sOpposite = RoomItem.radius |> Quantity.unwrap
-            in
-            atan (sOpposite / sAdjacent) / (toFloat numRays * 0.5)
-    in
-    List.initialize numRays (\i -> (toFloat i - (toFloat numRays * 0.5)) * angleIncrement)
-        |> List.map Angle.radians
-        |> List.map beamRay
-        |> Maybe.values
-
+lineAttrs zoomScale customAttrs =
+    lineAttrsDefault zoomScale ++ customAttrs
 
 lineAttrsDefault : Float -> List (Svg.Attribute msg)
 lineAttrsDefault zoomScale = 
     [ Attr.fill "none" 
     , Attr.stroke "black"
-    , Attr.strokeWidth <| Shared.floatAttribute zoomScale 0.01
-    , Attr.strokeDasharray <| Shared.floatAttribute zoomScale 0.1
-    , Attr.strokeDashoffset <| Shared.floatAttribute zoomScale 0.0
+    , Attr.strokeWidth <| Shared.floatAttributeForZoom zoomScale 0.01
+    , Attr.strokeDasharray <| Shared.floatAttributeForZoom zoomScale 0.1
+    , Attr.strokeDashoffset <| Shared.floatAttributeForZoom zoomScale 0.0
     ]
+
+viewProjectionWithOptions : ViewOptions msg -> Sightray -> Svg msg 
+viewProjectionWithOptions options ray = 
+    ray 
+        |> reflections -- final projection point is the first reflection point
+        |> List.head 
+        |> Maybe.map .point
+        |> Maybe.withDefault (endPos ray)
+        |> (LineSegment2d.from ray.startPos)
+        |> Svg.lineSegment2d (lineAttrs options.zoomScale options.attributes)
 
 viewAngles : Sightray -> Svg msg
 viewAngles ray = 
@@ -513,18 +525,18 @@ viewAngle bounce arc =
                 , Attr.strokeDasharray "0.02"
                 ]
                 (LineSegment2d.from arcCenter p
-                    |> LineSegment2d.scaleAbout arcCenter 1.5)
+                    |> LineSegment2d.scaleAbout arcCenter 1.5
+                )
     in
     Svg.g []
         [ Svg.arc2d 
             [ Attr.fill color
-            , Attr.stroke "black" --fill
+            , Attr.stroke "black"
             , Attr.strokeWidth "0.01"
-            -- , Attr.opacity "0.33"
             ] 
             arc
         , Svg.triangle2d [ Attr.fill color ] (triangleForArc arc)
-        , viewLabel 
+        , Shared.viewLabel 
             (LineSegment2d.from arcCenter (Arc2d.midpoint arc)
                 |> (\l -> LineSegment2d.interpolate l 0.7)
             )
@@ -542,30 +554,6 @@ viewAngle bounce arc =
             )
         , sideLine (Arc2d.startPoint arc)
         , sideLine (Arc2d.endPoint arc)
-        ]
-
-viewLabel : Point -> Vector -> String -> Svg msg
-viewLabel startPoint vector text = 
-    let 
-        endPoint = Point2d.translateBy vector startPoint 
-        textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
-        fontSize = 0.125
-    in
-    Svg.g []
-        [ Svg.circle2d [ Attr.fill "black" ]
-            (Circle2d.atPoint startPoint (Length.meters 0.02))
-        , Svg.lineSegment2d 
-            [ Attr.fill "none", Attr.stroke "black", Attr.strokeWidth (Shared.floatAttribute 1 0.01) ]
-            (LineSegment2d.from startPoint endPoint)
-        , Svg.text_ 
-            [ Attr.fontSize <| Shared.floatAttribute 1 fontSize
-            , Attr.x <| Shared.floatAttribute 1 (-0.5 * fontSize)
-            , Attr.fill "black"
-            , Attr.alignmentBaseline "central"
-            ] 
-            [ Svg.text text ]
-            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
-            |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
         ]
 
 viewSamplePoints : Sightray -> Svg msg 
