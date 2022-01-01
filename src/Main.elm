@@ -11,6 +11,7 @@ import Element.Input as Input
 import Element.Region as Region
 import Html exposing (Html)
 import List.Extra as List
+import Maybe.Extra as Maybe
 import Quantity
 import Shared
 
@@ -31,20 +32,25 @@ type alias Model =
 init : () -> (Model, Cmd Msg)
 init _ =
     { levelIndex = 0
-    , levels = 
-        [ Diagram.initLevel1
-        , Diagram.initLevel2
-        , Diagram.initLevel3
-        , Diagram.initLevel4 
-        ]
+    , levels = initialLevels
     }
         |> Shared.noCmds
 
-diagram : Model -> Diagram.Model
-diagram model = 
+initialLevels : List Diagram.Model 
+initialLevels = 
+    [ Diagram.initLevel1
+    , Diagram.initLevel2
+    , Diagram.initLevel3
+    , Diagram.initLevel4 
+    ]
+
+diagramM : Model -> Maybe Diagram.Model
+diagramM model = 
     model.levels 
         |> List.getAt model.levelIndex
-        |> Maybe.withDefault Diagram.initLevel1
+
+diagram =
+    diagramM >> Maybe.withDefault Diagram.initLevel1
 
 
 -- SUBSCRIPTIONS -- 
@@ -59,8 +65,7 @@ subscriptions model =
 type Msg 
     = NoOp
     | DiagramMsg Diagram.Msg
-    | PreviousLevel 
-    | NextLevel
+    | ChangeLevel Int
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
@@ -70,14 +75,13 @@ update msg model =
                 |> updateDiagramAtIndex model.levelIndex (Diagram.update dm)
                 |> Shared.noCmds
 
-        PreviousLevel ->
-            { model | levelIndex = max 0 (model.levelIndex - 1) }
-                |> updateDiagramAtIndex model.levelIndex Diagram.reset
-                |> Shared.noCmds
-
-        NextLevel -> 
-            { model | levelIndex = min (List.length model.levels - 1) (model.levelIndex + 1) }
-                |> updateDiagramAtIndex model.levelIndex Diagram.reset
+        ChangeLevel amount ->
+            { model | levelIndex = 
+                model.levelIndex + amount 
+                    |> clamp 0 (List.length model.levels - 1) 
+            }
+                |> updateDiagramAtIndex model.levelIndex 
+                    (resetDiagramIfSucceeded model.levelIndex)
                 |> Shared.noCmds
 
         _ ->
@@ -89,6 +93,12 @@ updateDiagramAtIndex index upd model =
     { model | levels = model.levels 
         |> List.indexedMap (\i dia -> if i == index then upd dia else dia)
     }
+
+resetDiagramIfSucceeded : Int -> Diagram.Model -> Diagram.Model 
+resetDiagramIfSucceeded index dia = 
+    List.getAt index initialLevels 
+        |> Maybe.filter (\_ -> Diagram.hasSucceeded dia)
+        |> Maybe.withDefault dia
 
 -- VIEW --
 
@@ -106,7 +116,7 @@ view model =
             (El.column 
                 [ El.centerX 
                 , El.paddingXY 20 20
-                , El.spacing 30
+                , El.spacing 50
                 -- , El.width <| El.px 800
                 , Font.size 16
                 , Font.family 
@@ -117,31 +127,38 @@ view model =
                     ]
                 , Font.color darkGrey
                 ]
-                [ El.el [ Region.heading 1, Font.size 30, El.paddingXY 0 20 ] 
-                    <| El.text "Pat's Infinite Mirror Box"
-                , El.el [ Region.heading 3, Font.size 22 ] <| El.text "Scenario"
-                , El.paragraph paragraphAttrs 
-                    [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
-                    , El.text "She recently bought a fancy new camera, "
-                    , El.text "and is excited to start taking some pics. "
-                    , El.text "She is especially curious to test out the range "
-                    , El.text "of its zoom capabilities."
-                    ]
-                , El.paragraph paragraphAttrs
-                    [ El.text "Arriving home, Pat enters her "
-                    , El.el [ ] (El.text "Infinite Mirror Box, ")
-                    , El.text "a small room with 4 adjustable mirrors for walls. "
-                    , El.text "The room doesn't contain much, just Garrett the Parrot 🦜 "
-                    , El.text "and a few potted plants 🪴. "
-                    , El.text "But the light bouncing around off the mirrored walls "
-                    , El.text """gives Pat the illusion of standing in an "infinite forest" """
-                    , El.text "surrounded by many plants and birds: "
-                    , El.text " some close by, and others far away..."
-                    ]
+                [ El.el [ Region.heading 1, Font.size 30 ] 
+                    <| El.text "Pat's Infinite Forest Box"
+                , viewScenario
                 , viewDiagramContainer model
                 ]
             )
         )
+
+viewScenario : Element Msg 
+viewScenario = 
+    El.column 
+        [ El.spacing 30 ] 
+        [ El.el [ Region.heading 3, Font.size 22 ] <| El.text "Scenario"
+        , El.paragraph paragraphAttrs 
+            [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
+            , El.text "She recently bought a fancy new camera, "
+            , El.text "and is excited to start taking some pics. "
+            , El.text "She is especially curious to test out the range "
+            , El.text "of its zoom capabilities."
+            ]
+        , El.paragraph paragraphAttrs
+            [ El.text "Arriving home, Pat enters her "
+            , El.el [ ] (El.text "Infinite Forest Box, ")
+            , El.text "a small room with 4 adjustable mirrors for walls. "
+            , El.text "The room doesn't contain much, just Garrett the Parrot 🦜 "
+            , El.text "and a few potted plants 🪴. "
+            , El.text "But the light bouncing around off the mirrored walls "
+            , El.text """gives Pat the illusion of standing in an "infinite forest" """
+            , El.text "surrounded by many plants and birds: "
+            , El.text " some close by, and others far away..."
+            ]
+        ]
 
 viewDiagramContainer : Model -> Element Msg
 viewDiagramContainer model = 
@@ -184,10 +201,13 @@ viewLevelControls levelIndex =
         ]
         <| El.row 
             [ El.spacing 20, El.centerX ] 
-            [ Input.button [] { label = El.text "<", onPress = Just PreviousLevel }
+            [ Input.button [ El.focused [], El.mouseDown [ Font.color veryLightGrey ] ] 
+                { label = El.text "<", onPress = Just (ChangeLevel -1) }
             , levelIndex |> (+) 1 |> String.fromInt |> (++) "Level " |> El.text 
-            , Input.button [] { label = El.text ">", onPress = Just NextLevel }
+            , Input.button [ El.focused [], El.mouseDown [ Font.color veryLightGrey ] ] 
+                { label = El.text ">", onPress = Just (ChangeLevel 1) }
             ]
+
 
 paragraphAttrs =
     [ El.spacing 15 ] 

@@ -1,4 +1,15 @@
-module Diagram exposing (..)
+module Diagram exposing 
+    ( hasSucceeded
+    , initLevel1
+    , initLevel2
+    , initLevel3
+    , initLevel4
+    , Model 
+    , Msg
+    , subscriptions
+    , update 
+    , view 
+    )
 
 import Angle exposing (Angle)
 import Arc2d
@@ -8,6 +19,7 @@ import Browser
 import Circle2d
 import Color
 import Direction2d exposing (Direction2d)
+import Ease
 import Element as El exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
@@ -45,16 +57,10 @@ import TypedSvg.Attributes
 import TypedSvg.Attributes.InPx
 import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 import Shared exposing (..)
-import Sightray
+import SightRay exposing (SightRay)
 import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
 import Time
-import Triangle2d
-import Sightray exposing (Sightray)
-import Circle2d exposing (centerPoint)
-import TypedSvg.Types exposing (YesNo(..))
-import TypedSvg.Attributes exposing (direction)
-import Ease
 
 -- MODEL --
 
@@ -156,9 +162,9 @@ currentZoomScale model =
         (zoomScaleForStep (step + 1))
         (transitionPct) 
 
-rayNormal : Model -> Sightray
+rayNormal : Model -> SightRay
 rayNormal model =
-    Sightray.fromRoomAndProjectedPath model.room
+    SightRay.fromRoomAndProjectedPath model.room
         (Shared.projectedSightline model.room.playerItem.pos 
             model.sightDirection 
             model.sightDistance
@@ -167,7 +173,7 @@ rayNormal model =
 rayDistance : Model -> Float
 rayDistance model =
     rayNormal model 
-        |> Sightray.length
+        |> SightRay.length
         |> (\dist -> 
             if closeEnough model.sightDistance dist then model.sightDistance else dist
         )
@@ -182,6 +188,9 @@ projectedSightline : Model -> LineSegment
 projectedSightline model = 
     Shared.projectedSightline model.room.playerItem.pos model.sightDirection model.sightDistance
 
+hasSucceeded : Model -> Bool 
+hasSucceeded model = 
+    Maybe.isJust (successAnimation model)
 
 -- UPDATE --
 
@@ -255,7 +264,7 @@ update msg model =
 
 checkAnimationFinished : SuccessAnimation -> Model -> Bool
 checkAnimationFinished animation model = 
-    animation.step >= List.length (Sightray.uncurledSeries (rayNormal model)) - 1
+    animation.step >= List.length (SightRay.uncurledSeries (rayNormal model)) - 1
 
 updatePlayerDirection : Model -> Point -> Point -> Model
 updatePlayerDirection model mousePos prevMousePos =
@@ -273,12 +282,12 @@ nextPhotoAttempt model =
 
         (_, itemHitM) = 
             case ray.end of 
-                Sightray.TooFar p -> (p, Nothing)
-                Sightray.EndAtItem p i -> (p, Just i)
+                SightRay.TooFar p -> (p, Nothing)
+                SightRay.EndAtItem p i -> (p, Just i)
 
         targetHit = 
             itemHitM == Just (Room.targetItem model.room)
-                && closeEnough (Sightray.length ray) model.sightDistance
+                && closeEnough (SightRay.length ray) model.sightDistance
     in
     case (successAnimation model, targetHit, itemHitM) of 
         (Just alreadyExistingAni, _, _) -> 
@@ -379,7 +388,7 @@ viewDiagramNormal model =
         , viewBeam (successAnimation model) model
         , viewPhotoAttempt model
         , if model.mouseHoverArea == Just HoverBeam && not model.dragging then 
-            Sightray.viewDistanceLabel (rayNormal model) 
+            SightRay.viewDistanceLabel (rayNormal model) 
           else 
             Shared.svgEmpty
         ]
@@ -396,15 +405,15 @@ viewDiagramSuccess model animation =
             transitionRay animation (rayNormal model)
 
         reflectedRooms = 
-            currentRay |> Sightray.hallway model.room 
+            currentRay |> SightRay.hallway model.room 
 
         farthestRoom = 
             reflectedRooms |> List.last |> Maybe.withDefault model.room
 
         nextRoomM = 
             currentRay
-                |> Sightray.uncurl 
-                |> Maybe.map (Sightray.hallway model.room)
+                |> SightRay.uncurl 
+                |> Maybe.map (SightRay.hallway model.room)
                 |> Maybe.andThen List.last
 
         transitionRoomM = 
@@ -438,7 +447,7 @@ viewPhotoAttempt model =
         PhotoSuccess animation ->
             rayPairForAnimation animation (rayNormal model)
                 |> Tuple.first
-                |> Sightray.endItem
+                |> SightRay.endItem
                 |> Maybe.map (\item -> 
                     Svg.circle2d 
                         [ Attr.stroke Shared.colors.yellow1
@@ -451,10 +460,10 @@ viewPhotoAttempt model =
         _ -> Shared.svgEmpty
 
 
-rayPairForAnimation : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
+rayPairForAnimation : SuccessAnimation -> SightRay -> (SightRay, Maybe SightRay)
 rayPairForAnimation animation ray = 
     ray 
-        |> Sightray.uncurledSeries
+        |> SightRay.uncurledSeries
         |> Array.fromList
         |> (\rs -> 
             ( Array.get animation.step rs |> Maybe.withDefault ray
@@ -476,7 +485,7 @@ viewBeam animationM model =
             rayNormal model
 
         options showAngles attrs = 
-            { angleLabels = if showAngles then Sightray.AllAngles else Sightray.NoAngles 
+            { angleLabels = if showAngles then SightRay.AllAngles else SightRay.NoAngles 
             , attributes = attrs
             , projectionAttributes = []
             , zoomScale = currentZoomScale model
@@ -502,10 +511,10 @@ viewBeam animationM model =
     in 
     Svg.g []
         (List.concat
-            [ Sightray.beam model.room (projectedSightline model) -- the yellow beam rays
+            [ SightRay.beam model.room (projectedSightline model) -- the yellow beam rays
                 |> List.map transitionIfAnimating
                 |> List.indexedMap (\i -> 
-                    Sightray.viewWithOptions (options False 
+                    SightRay.viewWithOptions (options False 
                         [ Attr.stroke <| 
                             if model.dragging || model.mouseHoverArea == Just HoverBeam then 
                                 Shared.colors.yellowDark 
@@ -520,10 +529,10 @@ viewBeam animationM model =
                     )
                 )
             , [ ray -- the "true" ray, invisible but showing angles during mouse drag
-                |> Sightray.viewWithOptions (options model.dragging [ Attr.opacity "0"]) 
+                |> SightRay.viewWithOptions (options model.dragging [ Attr.opacity "0"]) 
               , ray -- a thick invisible line over the initial straight portion to detect the cursor
-                |> Sightray.viewProjectionWithOptions
-                    { angleLabels = Sightray.NoAngles 
+                |> SightRay.viewProjectionWithOptions
+                    { angleLabels = SightRay.NoAngles 
                     , projectionAttributes = [] 
                     , attributes = draggableAttrs ++
                         [ Attr.opacity "0", Attr.strokeDasharray "0", Attr.strokeWidth "0.25"]
@@ -533,12 +542,12 @@ viewBeam animationM model =
             ]
         )
 
-transitionRay : SuccessAnimation -> Sightray -> (Sightray, Maybe Sightray)
+transitionRay : SuccessAnimation -> SightRay -> (SightRay, Maybe SightRay)
 transitionRay animation curledRay = 
     rayPairForAnimation animation curledRay 
         |> (\(uncurledRay, nextUncurledRayM) -> 
             ( uncurledRay
-            , Maybe.map2 (Sightray.interpolateFrom uncurledRay) 
+            , Maybe.map2 (SightRay.interpolateFrom uncurledRay) 
                 nextUncurledRayM 
                 (animation.transitionPct |> Maybe.map pctForRay)
             )

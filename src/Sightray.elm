@@ -1,4 +1,4 @@
-module Sightray exposing 
+module SightRay exposing 
     ( AngleLabels(..)
     , beam
     , endItem
@@ -10,7 +10,7 @@ module Sightray exposing
     , viewDistanceLabel
     , viewProjectionWithOptions
     , viewWithOptions
-    , Sightray
+    , SightRay
     , uncurl
     , uncurledSeries
     )
@@ -46,7 +46,7 @@ import Vector2d
  -- Types -- 
 
 {-| 
-`Sightray` represents a trace of the viewer's gaze looking out into the room.
+`SightRay` represents a trace of the viewer's gaze looking out into the room.
 
 Breaks down into 4 stages:
 1. It starts at the viewer's location, 
@@ -59,9 +59,9 @@ Breaks down into 4 stages:
 A few things to note:
 - The distinction between steps 2 and 3 above is not enforced at the type level.
 - The "actual ray of light" travels in the opposite direction, 
-starting at the Sightray's end point and arriving at the viewer's location.
+starting at the SightRay's end point and arriving at the viewer's location.
 -}
-type alias Sightray = 
+type alias SightRay = 
     { startPos : Point
     , bounces : List MirrorBounce 
     , end : RayEnd 
@@ -80,17 +80,17 @@ type alias MirrorBounce =
 
 -- Constructors -- 
 
-noBounces : Point -> RayEnd -> Sightray
+noBounces : Point -> RayEnd -> SightRay
 noBounces startPos end = 
-    Sightray startPos [] end
+    SightRay startPos [] end
 
 
 {-| 
-Construct a Sightray from the Room where the viewer is standing
+Construct a SightRay from the Room where the viewer is standing
 and a "projected sightline", ie a straight line segment describing where the 
 viewer's gaze *would* travel if it were to continue straight and never hit anything.
 -}
-fromRoomAndProjectedPath : Room -> LineSegment -> Sightray
+fromRoomAndProjectedPath : Room -> LineSegment -> SightRay
 fromRoomAndProjectedPath room projectedSightline = 
     let 
         (projectedStart, projectedEnd) =
@@ -175,11 +175,11 @@ type Intersection
 
  -- Transformations --
 
-addBounce : MirrorBounce -> Sightray -> Sightray
+addBounce : MirrorBounce -> SightRay -> SightRay
 addBounce bounce rp =
     { rp | bounces = bounce :: rp.bounces }
 
-mirrorAcross : Axis -> Sightray -> Sightray
+mirrorAcross : Axis -> SightRay -> SightRay
 mirrorAcross axis ray =
     let 
         reflectPoint : Point -> Point
@@ -217,7 +217,7 @@ updateEndPos upd end =
 
 -- Properties --
 
-endPos : Sightray -> Point 
+endPos : SightRay -> Point 
 endPos = 
     .end >> endPosFromEnd
 
@@ -227,7 +227,7 @@ endPosFromEnd end =
         TooFar p -> p
         EndAtItem p _ -> p
 
-endItem : Sightray -> Maybe RoomItem
+endItem : SightRay -> Maybe RoomItem
 endItem ray = 
     case ray.end of 
         TooFar _ -> Nothing 
@@ -236,7 +236,7 @@ endItem ray =
 {-|
 
 -}
-uncurl : Sightray -> Maybe Sightray 
+uncurl : SightRay -> Maybe SightRay 
 uncurl ray = 
     projectionsAndReflections ray
         |> (\(projs, refs) -> 
@@ -252,11 +252,11 @@ uncurl ray =
                 )
         )
 
-uncurledSeries : Sightray -> List Sightray 
+uncurledSeries : SightRay -> List SightRay 
 uncurledSeries = 
     List.iterate uncurl
 
-hallway : Room -> Sightray -> List Room
+hallway : Room -> SightRay -> List Room
 hallway room ray = 
     let
         reflectRoom : Room -> List MirrorBounce -> Room
@@ -267,7 +267,7 @@ hallway room ray =
         |> List.inits 
         |> List.map (reflectRoom room)
 
-projectionsAndReflections : Sightray -> (List MirrorBounce, List MirrorBounce)
+projectionsAndReflections : SightRay -> (List MirrorBounce, List MirrorBounce)
 projectionsAndReflections ray = 
     let dropNeighborInfo = List.map (\(_, bounce, _) -> bounce) in
     bouncesWithNeighborPoints ray
@@ -280,27 +280,27 @@ isProjection (prev, bounce, next) =
         (Direction2d.from bounce.point next)
         |> Maybe.withDefault False
 
-projections : Sightray -> List MirrorBounce
+projections : SightRay -> List MirrorBounce
 projections = 
     projectionsAndReflections >> Tuple.first
 
-reflections : Sightray -> List MirrorBounce
+reflections : SightRay -> List MirrorBounce
 reflections = 
     projectionsAndReflections >> Tuple.second
 
-vertices : Sightray -> List Point 
+vertices : SightRay -> List Point 
 vertices ray = -- TODO nonempty list?
     ray.startPos :: (List.map .point ray.bounces) ++ [ endPosFromEnd ray.end ]
 
-polyline : Sightray -> Polyline
+polyline : SightRay -> Polyline
 polyline ray = 
     ray |> vertices |> Polyline2d.fromVertices
 
-length : Sightray -> Length
+length : SightRay -> Length
 length ray =
     ray |> polyline |> Polyline2d.length
 
-bouncesWithNeighborPoints : Sightray -> List (Point, MirrorBounce, Point)
+bouncesWithNeighborPoints : SightRay -> List (Point, MirrorBounce, Point)
 bouncesWithNeighborPoints ray = 
     let
         mapTheArray : Array MirrorBounce -> Array (Point, MirrorBounce, Point)
@@ -324,11 +324,11 @@ bouncesWithNeighborPoints ray =
 
 
 {-|
-Returns a handful of `Sightray`s that together comprise the yellow beam of light we show on screen.
+Returns a handful of `SightRay`s that together comprise the yellow beam of light we show on screen.
 Takes the "real" ray as input and rotates it a bit in either direction, with an angle such that,
 at the desired distance away, the width of the beam will equal the diameter of a `RoomItem`.
 -}
-beam : Room -> LineSegment -> List Sightray
+beam : Room -> LineSegment -> List SightRay
 beam room sightline = 
     let 
         (sightStart, sightEnd) = LineSegment2d.endpoints sightline
@@ -356,7 +356,7 @@ beam room sightline =
         |> List.map beamRay
         |> Maybe.values
 
-angleArcs : Sightray -> List (Arc, MirrorBounce, Arc)
+angleArcs : SightRay -> List (Arc, MirrorBounce, Arc)
 angleArcs ray = 
     let 
         mkWedge bounce neighbor = 
@@ -385,7 +385,7 @@ angleArcs ray =
 angleArcRadius : Length
 angleArcRadius = Length.meters 0.25
 
-interpolateFrom : Sightray -> Sightray -> Float -> Sightray
+interpolateFrom : SightRay -> SightRay -> Float -> SightRay
 interpolateFrom ray1 ray2 pct =
     { startPos = Shared.interpolatePointFrom ray1.startPos ray2.startPos pct
     , bounces = Shared.interpolateLists interpolateBounceFrom ray1.bounces ray2.bounces pct
@@ -435,11 +435,11 @@ defaultOptions =
     , zoomScale = 1
     }
 
-view : Sightray -> Svg msg
+view : SightRay -> Svg msg
 view = 
     viewWithOptions defaultOptions
 
-viewWithOptions : ViewOptions msg -> Sightray -> Svg msg
+viewWithOptions : ViewOptions msg -> SightRay -> Svg msg
 viewWithOptions options ray =
     let (projs, refs) = projectionsAndReflections ray in
     Svg.g []
@@ -470,7 +470,7 @@ viewWithOptions options ray =
             _ -> Shared.svgEmpty
         ]
 
-viewDistanceLabel : Sightray -> Svg msg
+viewDistanceLabel : SightRay -> Svg msg
 viewDistanceLabel ray = 
     let 
         endxy = 
@@ -504,7 +504,7 @@ lineAttrsDefault zoomScale =
     , Attr.strokeDashoffset <| Shared.floatAttributeForZoom zoomScale 0.0
     ]
 
-viewProjectionWithOptions : ViewOptions msg -> Sightray -> Svg msg 
+viewProjectionWithOptions : ViewOptions msg -> SightRay -> Svg msg 
 viewProjectionWithOptions options ray = 
     ray 
         |> reflections -- final projection point is the first reflection point
@@ -514,7 +514,7 @@ viewProjectionWithOptions options ray =
         |> (LineSegment2d.from ray.startPos)
         |> Svg.lineSegment2d (lineAttrs options.zoomScale options.attributes)
 
-viewAngles : Sightray -> Svg msg
+viewAngles : SightRay -> Svg msg
 viewAngles ray = 
     angleArcs ray
         |> List.map (\(arc1, bounce, arc2) -> 
