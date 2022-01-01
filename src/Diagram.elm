@@ -1,5 +1,6 @@
 module Diagram exposing 
-    ( hasSucceeded
+    ( checkAnimationFinished
+    , hasSucceeded
     , initLevel1
     , initLevel2
     , initLevel3
@@ -237,7 +238,7 @@ update msg model =
                     { ani | step = ani.step + 1, transitionPct = Just 0.0 }
                 )
                 |> Maybe.map (\newAni -> 
-                    if checkAnimationFinished newAni model then
+                    if checkAnimationFinished model then
                         model
                     else 
                         model |> updateSuccessAnimation (\_ -> newAni)
@@ -246,6 +247,7 @@ update msg model =
 
         Tick -> 
             successAnimation model
+                |> Maybe.filter (\_ -> checkAnimationFinished model == False)
                 |> Maybe.andThen .transitionPct 
                 |> Maybe.map ((+) 0.02)
                 |> Maybe.map (\newPct -> 
@@ -262,9 +264,14 @@ update msg model =
         _ ->
             model
 
-checkAnimationFinished : SuccessAnimation -> Model -> Bool
-checkAnimationFinished animation model = 
-    animation.step >= List.length (SightRay.uncurledSeries (rayNormal model)) - 1
+checkAnimationFinished : Model -> Bool
+checkAnimationFinished model = 
+    successAnimation model 
+        |> Maybe.map (\ani -> 
+            ani.step >= List.length (SightRay.uncurledSeries (rayNormal model)) - 1
+        )
+        |> Maybe.withDefault False
+        |> Debug.log "ani finished"
 
 updatePlayerDirection : Model -> Point -> Point -> Model
 updatePlayerDirection model mousePos prevMousePos =
@@ -322,7 +329,7 @@ subscriptions model =
             animationM
                 |> Maybe.map (\ani ->
                     Maybe.isJust ani.transitionPct 
-                        && (checkAnimationFinished ani model == False)
+                        && (checkAnimationFinished model == False)
                 )
                 |> Maybe.withDefault False
     in
@@ -330,19 +337,6 @@ subscriptions model =
         Time.every 50 (\_ -> Tick)
     else 
         Sub.none
-    -- successAnimation model
-    --     |> Maybe.andThen .transitionPct
-    --     |> Maybe.map (\_ -> Time.every 50 (\_ -> Tick))
-    --     |> Maybe.withDefault Sub.none
-
-
--- VIEW --
-
--- check if animating at all 
-    -- subs
-    -- mouse up
--- check if success and finished
-    -- view success
 
 view : Model -> Html Msg
 view model =

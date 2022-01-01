@@ -19,6 +19,7 @@ import Shared
 import Shared exposing (noCmds)
 import Browser.Dom
 import Task
+import Shared exposing (debugLogF)
 
 
 main = 
@@ -32,17 +33,22 @@ main =
 type alias Model =
     { levelIndex : Int
     , levels : List Diagram.Model
-    , device : El.Device
+    , windowSize : WindowSize
+    }
+
+type alias WindowSize = 
+    { width : Int 
+    , height : Int
     }
 
 init : () -> (Model, Cmd Msg)
 init _ =
     ( { levelIndex = 0
       , levels = initialLevels
-      , device = El.classifyDevice { width = 800, height = 600 }
+      , windowSize = WindowSize 905 600 
       }
     , Task.perform 
-        (\vp -> WindowResize (round vp.scene.width) (round vp.scene.height)) 
+        (\vp -> WindowResize { width = round vp.scene.width, height = round vp.scene.height }) 
         Browser.Dom.getViewport
     )
 
@@ -69,7 +75,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ diagram model |> Diagram.subscriptions |> Sub.map DiagramMsg
-        , Browser.Events.onResize WindowResize
+        , Browser.Events.onResize (\w h -> WindowResize (WindowSize w h))
         ]
 
 
@@ -80,7 +86,7 @@ type Msg
     | DiagramMsg Diagram.Msg
     | ChangeLevel Int
     | Reset Int
-    | WindowResize Int Int
+    | WindowResize WindowSize
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
@@ -102,9 +108,8 @@ update msg model =
                 |> updateDiagramAtIndex index (resetDiagramIfSucceeded index)
                 |> Shared.noCmds
 
-        WindowResize width height ->
-            { model | device = El.classifyDevice { width = width, height = height } 
-                |> Shared.debugLogF "device and width" (Tuple.pair width) }
+        WindowResize size ->
+            { model | windowSize = size } 
                 |> noCmds
 
         _ ->
@@ -133,16 +138,14 @@ view model =
         , El.centerX
         ]
         (El.el 
-            [ El.width (El.fill |> El.maximum 700)
+            [ El.width (El.fill |> El.maximum (maxMainWidth model.windowSize.width))
             , El.centerX 
             ] 
             (El.column 
                 [ El.centerX 
-                , case model.device.class of 
-                    El.Phone -> El.paddingXY 0 0
-                    _ -> El.paddingXY 20 20
-                , El.spacing 50
-                , Font.size 16
+                , El.spacing 60
+                , El.paddingXY 0 10
+                , Font.size <| fontScale model.windowSize -1
                 , Font.family 
                     [ Font.external
                         { name = "Cantarell"
@@ -151,21 +154,38 @@ view model =
                     ]
                 , Font.color darkGrey
                 ]
-                [ El.column [ El.padding 5, El.spacing 50 ] 
-                    [ El.el [ Font.size 30 ] 
+                [ El.column [ El.padding 10, El.spacing 50 ] 
+                    [ El.el 
+                        [ Region.heading 1
+                        , Font.size <| fontScale model.windowSize 4
+                        , Font.color darkGrey
+                        ] 
                         <| El.text "Infinite Forest Box"
-                    , viewScenario
+                    , viewScenario model.windowSize
                     ]
                 , viewDiagramContainer model
                 ]
             )
         )
 
-viewScenario : Element Msg 
-viewScenario = 
+fontScale : WindowSize -> Int -> Int
+fontScale windowSize n =
+    let
+        windowWidthFactor = 
+            0.01 * toFloat windowSize.width
+
+        baseFontSize =
+            14 + windowWidthFactor
+    in
+        n |> El.modular (baseFontSize) 1.25 |> round
+
+viewScenario : WindowSize -> Element Msg 
+viewScenario windowSize = 
     El.column 
-        [ El.spacing 30 ] 
-        [ El.el [ Font.size 22 ] <| El.text "Scenario"
+        [ El.spacing 35 ] 
+        [ El.el 
+            [ Region.heading 3, Font.size <| fontScale windowSize 3 ] 
+            <| El.text "Scenario"
         , El.paragraph paragraphAttrs 
             [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
             , El.text "She recently bought a fancy new camera, "
@@ -196,9 +216,10 @@ viewDiagramContainer model =
         , Border.color veryLightGrey
         , El.htmlAttribute (Html.Attributes.style "touch-action" "none")
         ] 
-        [ viewLevelControls model.levels model.levelIndex
-        , El.column [ El.padding 10, El.width El.fill ]  
-            [ instructionsParagraph model.levelIndex (diagram model)
+        [ viewLevelControls model.windowSize model.levels model.levelIndex
+        , El.column 
+            [ El.padding 10, El.width El.fill, Font.size <| fontScale model.windowSize 0 ]  
+            [ viewInstructions model.levelIndex (diagram model)
             , El.el 
                 [ El.centerX ] 
                 ( diagram model 
@@ -209,16 +230,18 @@ viewDiagramContainer model =
             ]
         ]
 
-darkGrey = El.rgb 0.35 0.35 0.35 
+veryDarkGrey = El.rgb 0.3 0.3 0.3 
+darkGrey = El.rgb 0.4 0.4 0.4 
 lightGrey = El.rgb 0.7 0.7 0.7
 veryLightGrey = El.rgb 0.9 0.9 0.9
-yellow1 = El.rgb 0.85 0.65 0.4
+yellow1 = El.rgb 0.933 0.655 0.122
 
-viewLevelControls : List Diagram.Model -> Int -> Element Msg 
-viewLevelControls levels levelIndex = 
+viewLevelControls : WindowSize -> List Diagram.Model -> Int -> Element Msg 
+viewLevelControls windowSize levels levelIndex = 
     El.el 
-        [ Font.size 20
+        [ Font.size <| fontScale windowSize 2
         , Font.bold
+        , Region.heading 3
         , El.centerX
         , El.paddingXY 15 15
         , El.width El.fill
@@ -226,7 +249,7 @@ viewLevelControls levels levelIndex =
         , Font.color darkGrey
         ]
         <| El.row 
-            [ El.spacing 20, El.centerX ] 
+            [ El.spacing 20, El.centerX, Font.color veryDarkGrey ] 
             [ viewLevelButton levels levelIndex "<" -1
             , levelIndex |> (+) 1 |> String.fromInt |> (++) "Level " |> El.text 
             , viewLevelButton levels levelIndex ">" 1
@@ -246,6 +269,7 @@ viewLevelButton levels levelIndex labelText changeAmount =
         attrs = 
             [ El.focused []
             , El.alpha <| if enabled then 1 else 0.3
+            , Font.color yellow1
             , El.mouseDown <| if enabled then [ Font.color veryLightGrey ] else []
             ]
     in
@@ -255,27 +279,36 @@ viewLevelButton levels levelIndex labelText changeAmount =
 paragraphAttrs =
     [ El.spacing 15 ] 
 
+maxMainWidth windowWidth = 
+    if isPhone windowWidth then windowWidth else 800
 
-instructionsParagraph : Int -> Diagram.Model -> Element Msg
-instructionsParagraph levelIndex level = 
+isPhone width = 
+    width < 980
+
+viewInstructions : Int -> Diagram.Model -> Element Msg
+viewInstructions levelIndex level = 
     let
         body = 
-            if Diagram.hasSucceeded level then
-                [ El.text "You did it! " 
-                , Input.button 
-                    [ Font.color yellow1 , Font.bold ]
-                    { label = El.text "Try again"
-                    , onPress = Just (Reset levelIndex)
-                    }
-                ]
-            else 
-                [ El.paragraph [ El.spacing 15 ]
-                    [ El.text "Aim the cat's camera to take a photo of a version " 
-                    , El.text "of the bird in the mirror that appears to be "
-                    , El.el [ Font.bold, Font.color yellow1 ] 
-                        (El.text <| String.fromFloat (Quantity.unwrap level.sightDistance) ++ " meters away.")
+            case (Diagram.hasSucceeded level, Diagram.checkAnimationFinished level) of
+                (True, False) -> []
+                (True, True) ->
+                    [ El.text "Nice work!" 
+                    , Input.button [ Font.color yellow1 , Font.bold ]
+                        { label = El.text "Reload"
+                        , onPress = Just (Reset levelIndex)
+                        }
                     ]
-                ]
+                _ ->
+                    [ El.paragraph 
+                        [ El.spacing 15 ]
+                        [ El.text "Aim the cat's camera to take a photo of a version " 
+                        , El.text "of the bird in the mirror that appears to be "
+                        , El.el [ Font.bold, Font.color veryDarkGrey ] 
+                            (El.text <| String.fromFloat 
+                                (Quantity.unwrap level.sightDistance) ++ " meters away."
+                            )
+                        ]
+                    ]
     in
     
     El.row
