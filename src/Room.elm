@@ -8,6 +8,7 @@ module Room exposing
     , mirrorAcross
     , playerItem
     , Room
+    , setPlayerEmoji
     , targetItem
     , view
     )
@@ -145,6 +146,11 @@ interpolateFrom r1 r2 pct =
     , targetItem = RoomItem.interpolateFrom r1.targetItem r2.targetItem pct
     , trees = Shared.interpolateLists RoomItem.interpolateFrom r1.trees r2.trees pct
     }
+
+setPlayerEmoji : String -> Room -> Room 
+setPlayerEmoji emoji room = 
+    { room | playerItem = RoomItem.create room.playerItem.pos emoji }
+        |> Debug.log "set emoji"
 
 -- VIEW
 

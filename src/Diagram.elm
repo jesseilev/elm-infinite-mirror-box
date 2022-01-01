@@ -310,15 +310,6 @@ closeEnough : Length -> Length -> Bool
 closeEnough =
     Quantity.equalWithin (RoomItem.radius |> Quantity.multiplyBy 2)
 
--- roomStatus model = 
---     case ((successAnimation model), model.dragging) of
---         (Just _, _) -> Room.TakingPic
---         (_, False) -> Room.Standing
---         (_, True) -> Room.LookingAround
-
--- updateRoomStatus model =
---     { model | room = Room.update (Room.setStatusMsg <| roomStatus model) model.room }
-
 
 -- SUBSCRIPTIONS --
 
@@ -382,9 +373,10 @@ view model =
 
 viewDiagramNormal : Model -> Svg Msg
 viewDiagramNormal model =
+    let playerEmoji = if model.dragging then RoomItem.emojis.camera else RoomItem.emojis.cat in
     Svg.g 
         []
-        [ Room.view (currentZoomScale model) model.room
+        [ Room.view (currentZoomScale model) (model.room |> Room.setPlayerEmoji playerEmoji)
         , viewBeam (successAnimation model) model
         , viewPhotoAttempt model
         , if model.mouseHoverArea == Just HoverBeam && not model.dragging then 
@@ -401,19 +393,22 @@ viewDiagramSuccess model animation =
         initialRay = 
             rayNormal model
 
+        realRoom = 
+            model.room |> Room.setPlayerEmoji RoomItem.emojis.cameraFlash
+
         (currentRay, nextRayM) = 
             transitionRay animation (rayNormal model)
 
         reflectedRooms = 
-            currentRay |> SightRay.hallway model.room 
+            SightRay.hallway realRoom currentRay
 
         farthestRoom = 
-            reflectedRooms |> List.last |> Maybe.withDefault model.room
+            reflectedRooms |> List.last |> Maybe.withDefault realRoom
 
         nextRoomM = 
             currentRay
                 |> SightRay.uncurl 
-                |> Maybe.map (SightRay.hallway model.room)
+                |> Maybe.map (SightRay.hallway realRoom)
                 |> Maybe.andThen List.last
 
         transitionRoomM = 
@@ -430,12 +425,13 @@ viewDiagramSuccess model animation =
                 |> Maybe.withDefault initialRay.startPos
     in
     Svg.g [ ] 
-        [ reflectedRooms ++ (transitionRoomM |> Maybe.toList)
+        [ reflectedRooms 
+            |> List.drop 1 
+            |> (\rs -> rs ++ (transitionRoomM |> Maybe.toList))
             |> List.map (Room.view (currentZoomScale model))
             |> Svg.g [ Attr.opacity "0.4" ]
-        , Room.view (currentZoomScale model) model.room
+        , Room.view (currentZoomScale model) realRoom
         , viewBeam (Just animation) model
-        -- , viewPhotoAttempt model
         ]
         |> Svg.translateBy (Vector2d.from centroid Point2d.origin)
         |> Svg.at (pixelsPerMeterWithZoomScale (currentZoomScale model))
