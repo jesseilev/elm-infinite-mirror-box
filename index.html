@@ -5639,6 +5639,8 @@ var $author$project$Diagram$initLevel4 = A3(
 	$ianmackenzie$elm_geometry$Direction2d$fromAngle(
 		$ianmackenzie$elm_units$Angle$degrees(-133)),
 	$ianmackenzie$elm_units$Length$meters(20.0));
+var $author$project$Main$initialLevels = _List_fromArray(
+	[$author$project$Diagram$initLevel1, $author$project$Diagram$initLevel2, $author$project$Diagram$initLevel3, $author$project$Diagram$initLevel4]);
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Shared$noCmds = function (x) {
@@ -5646,15 +5648,16 @@ var $author$project$Shared$noCmds = function (x) {
 };
 var $author$project$Main$init = function (_v0) {
 	return $author$project$Shared$noCmds(
-		{
-			levelIndex: 0,
-			levels: _List_fromArray(
-				[$author$project$Diagram$initLevel1, $author$project$Diagram$initLevel2, $author$project$Diagram$initLevel3, $author$project$Diagram$initLevel4])
-		});
+		{levelIndex: 0, levels: $author$project$Main$initialLevels});
 };
 var $author$project$Main$DiagramMsg = function (a) {
 	return {$: 'DiagramMsg', a: a};
 };
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
 var $elm$core$List$drop = F2(
 	function (n, list) {
 		drop:
@@ -5690,6 +5693,9 @@ var $elm_community$list_extra$List$Extra$getAt = F2(
 		return (idx < 0) ? $elm$core$Maybe$Nothing : $elm$core$List$head(
 			A2($elm$core$List$drop, idx, xs));
 	});
+var $author$project$Main$diagramM = function (model) {
+	return A2($elm_community$list_extra$List$Extra$getAt, model.levelIndex, model.levels);
+};
 var $elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
 		if (maybe.$ === 'Just') {
@@ -5699,22 +5705,20 @@ var $elm$core$Maybe$withDefault = F2(
 			return _default;
 		}
 	});
-var $author$project$Main$diagram = function (model) {
-	return A2(
-		$elm$core$Maybe$withDefault,
-		$author$project$Diagram$initLevel1,
-		A2($elm_community$list_extra$List$Extra$getAt, model.levelIndex, model.levels));
-};
+var $author$project$Main$diagram = A2(
+	$elm$core$Basics$composeR,
+	$author$project$Main$diagramM,
+	$elm$core$Maybe$withDefault($author$project$Diagram$initLevel1));
 var $elm$core$Platform$Sub$map = _Platform_map;
 var $author$project$Diagram$Tick = {$: 'Tick'};
-var $author$project$Sightray$EndAtItem = F2(
+var $author$project$SightRay$EndAtItem = F2(
 	function (a, b) {
 		return {$: 'EndAtItem', a: a, b: b};
 	});
-var $author$project$Sightray$TooFar = function (a) {
+var $author$project$SightRay$TooFar = function (a) {
 	return {$: 'TooFar', a: a};
 };
-var $author$project$Sightray$addBounce = F2(
+var $author$project$SightRay$addBounce = F2(
 	function (bounce, rp) {
 		return _Utils_update(
 			rp,
@@ -5765,11 +5769,11 @@ var $ianmackenzie$elm_geometry$LineSegment2d$mirrorAcross = function (axis) {
 	return $ianmackenzie$elm_geometry$LineSegment2d$mapEndpoints(
 		$ianmackenzie$elm_geometry$Point2d$mirrorAcross(axis));
 };
-var $author$project$Sightray$IntersectItem = F2(
+var $author$project$SightRay$IntersectItem = F2(
 	function (a, b) {
 		return {$: 'IntersectItem', a: a, b: b};
 	});
-var $author$project$Sightray$IntersectMirror = function (a) {
+var $author$project$SightRay$IntersectMirror = function (a) {
 	return {$: 'IntersectMirror', a: a};
 };
 var $author$project$Room$allItems = function (model) {
@@ -5786,11 +5790,6 @@ var $elm$core$Maybe$andThen = F2(
 		} else {
 			return $elm$core$Maybe$Nothing;
 		}
-	});
-var $elm$core$Basics$composeR = F3(
-	function (f, g, x) {
-		return g(
-			f(x));
 	});
 var $ianmackenzie$elm_geometry$Geometry$Types$Circle2d = function (a) {
 	return {$: 'Circle2d', a: a};
@@ -6139,7 +6138,7 @@ var $ianmackenzie$elm_geometry$Axis2d$withDirection = F2(
 		return $ianmackenzie$elm_geometry$Geometry$Types$Axis2d(
 			{direction: givenDirection, originPoint: givenPoint});
 	});
-var $author$project$Sightray$nextIntersection = F2(
+var $author$project$SightRay$nextIntersection = F2(
 	function (room, projectedSightline) {
 		var trimmedSightline = A3(
 			$ianmackenzie$elm_geometry$LineSegment2d$scaleAbout,
@@ -6230,20 +6229,20 @@ var $author$project$Sightray$nextIntersection = F2(
 			var item = _v1.a;
 			var point = _v1.b;
 			return $elm$core$Maybe$Just(
-				A2($author$project$Sightray$IntersectItem, point, item));
+				A2($author$project$SightRay$IntersectItem, point, item));
 		} else {
-			return A2($elm$core$Maybe$map, $author$project$Sightray$IntersectMirror, nextMirrorBounceM);
+			return A2($elm$core$Maybe$map, $author$project$SightRay$IntersectMirror, nextMirrorBounceM);
 		}
 	});
-var $author$project$Sightray$Sightray = F3(
+var $author$project$SightRay$SightRay = F3(
 	function (startPos, bounces, end) {
 		return {bounces: bounces, end: end, startPos: startPos};
 	});
-var $author$project$Sightray$noBounces = F2(
+var $author$project$SightRay$noBounces = F2(
 	function (startPos, end) {
-		return A3($author$project$Sightray$Sightray, startPos, _List_Nil, end);
+		return A3($author$project$SightRay$SightRay, startPos, _List_Nil, end);
 	});
-var $author$project$Sightray$fromRoomAndProjectedPath = F2(
+var $author$project$SightRay$fromRoomAndProjectedPath = F2(
 	function (room, projectedSightline) {
 		var _v0 = $ianmackenzie$elm_geometry$LineSegment2d$endpoints(projectedSightline);
 		var projectedStart = _v0.a;
@@ -6256,7 +6255,7 @@ var $author$project$Sightray$fromRoomAndProjectedPath = F2(
 		};
 		var recurse = function (bounce) {
 			return A2(
-				$author$project$Sightray$addBounce,
+				$author$project$SightRay$addBounce,
 				bounce,
 				function (ray) {
 					return _Utils_update(
@@ -6264,11 +6263,11 @@ var $author$project$Sightray$fromRoomAndProjectedPath = F2(
 						{startPos: projectedStart});
 				}(
 					A2(
-						$author$project$Sightray$fromRoomAndProjectedPath,
+						$author$project$SightRay$fromRoomAndProjectedPath,
 						room,
 						nextProjectedPath(bounce))));
 		};
-		var _v1 = A2($author$project$Sightray$nextIntersection, room, projectedSightline);
+		var _v1 = A2($author$project$SightRay$nextIntersection, room, projectedSightline);
 		if (_v1.$ === 'Just') {
 			if (_v1.a.$ === 'IntersectMirror') {
 				var bounce = _v1.a.a;
@@ -6278,15 +6277,15 @@ var $author$project$Sightray$fromRoomAndProjectedPath = F2(
 				var point = _v2.a;
 				var item = _v2.b;
 				return A2(
-					$author$project$Sightray$noBounces,
+					$author$project$SightRay$noBounces,
 					projectedStart,
-					A2($author$project$Sightray$EndAtItem, point, item));
+					A2($author$project$SightRay$EndAtItem, point, item));
 			}
 		} else {
 			return A2(
-				$author$project$Sightray$noBounces,
+				$author$project$SightRay$noBounces,
 				projectedStart,
-				$author$project$Sightray$TooFar(projectedEnd));
+				$author$project$SightRay$TooFar(projectedEnd));
 		}
 	});
 var $ianmackenzie$elm_geometry$Point2d$translateBy = F2(
@@ -6464,7 +6463,7 @@ var $author$project$Shared$projectedSightline = F3(
 	});
 var $author$project$Diagram$rayNormal = function (model) {
 	return A2(
-		$author$project$Sightray$fromRoomAndProjectedPath,
+		$author$project$SightRay$fromRoomAndProjectedPath,
 		model.room,
 		A3($author$project$Shared$projectedSightline, model.room.playerItem.pos, model.sightDirection, model.sightDistance));
 };
@@ -6513,7 +6512,7 @@ var $ianmackenzie$elm_geometry$Axis2d$throughPoints = F2(
 			return $elm$core$Maybe$Nothing;
 		}
 	});
-var $author$project$Sightray$bounceMirrorAcross = F2(
+var $author$project$SightRay$bounceMirrorAcross = F2(
 	function (axis, bounce) {
 		var newWall = A2($ianmackenzie$elm_geometry$LineSegment2d$mirrorAcross, axis, bounce.wall);
 		var newAxis = A2(
@@ -6546,18 +6545,18 @@ var $author$project$RoomItem$setPos = F2(
 			},
 			item);
 	});
-var $author$project$Sightray$mirrorEndAcross = F2(
+var $author$project$SightRay$mirrorEndAcross = F2(
 	function (axis, end) {
 		var reflectPoint = $ianmackenzie$elm_geometry$Point2d$mirrorAcross(axis);
 		if (end.$ === 'TooFar') {
 			var pos = end.a;
-			return $author$project$Sightray$TooFar(
+			return $author$project$SightRay$TooFar(
 				reflectPoint(pos));
 		} else {
 			var pos = end.a;
 			var item = end.b;
 			return A2(
-				$author$project$Sightray$EndAtItem,
+				$author$project$SightRay$EndAtItem,
 				reflectPoint(pos),
 				A2(
 					$author$project$RoomItem$setPos,
@@ -6565,7 +6564,7 @@ var $author$project$Sightray$mirrorEndAcross = F2(
 					item));
 		}
 	});
-var $author$project$Sightray$endPosFromEnd = function (end) {
+var $author$project$SightRay$endPosFromEnd = function (end) {
 	if (end.$ === 'TooFar') {
 		var p = end.a;
 		return p;
@@ -6688,7 +6687,7 @@ var $elm$core$Array$indexedMap = F2(
 			true,
 			A3($elm$core$Elm$JsArray$foldl, helper, initialBuilder, tree));
 	});
-var $author$project$Sightray$bouncesWithNeighborPoints = function (ray) {
+var $author$project$SightRay$bouncesWithNeighborPoints = function (ray) {
 	var mapTheArray = function (bounces) {
 		return A2(
 			$elm$core$Array$indexedMap,
@@ -6707,7 +6706,7 @@ var $author$project$Sightray$bouncesWithNeighborPoints = function (ray) {
 						bounce,
 						A2(
 							$elm$core$Maybe$withDefault,
-							$author$project$Sightray$endPosFromEnd(ray.end),
+							$author$project$SightRay$endPosFromEnd(ray.end),
 							A2(
 								$elm$core$Maybe$map,
 								function ($) {
@@ -6748,7 +6747,7 @@ var $elm$core$Maybe$map2 = F3(
 			}
 		}
 	});
-var $author$project$Sightray$isProjection = function (_v0) {
+var $author$project$SightRay$isProjection = function (_v0) {
 	var prev = _v0.a;
 	var bounce = _v0.b;
 	var next = _v0.c;
@@ -6821,7 +6820,7 @@ var $elm_community$list_extra$List$Extra$span = F2(
 			A2($elm_community$list_extra$List$Extra$takeWhile, p, xs),
 			A2($elm_community$list_extra$List$Extra$dropWhile, p, xs));
 	});
-var $author$project$Sightray$projectionsAndReflections = function (ray) {
+var $author$project$SightRay$projectionsAndReflections = function (ray) {
 	var dropNeighborInfo = $elm$core$List$map(
 		function (_v0) {
 			var bounce = _v0.b;
@@ -6833,10 +6832,10 @@ var $author$project$Sightray$projectionsAndReflections = function (ray) {
 		dropNeighborInfo,
 		A2(
 			$elm_community$list_extra$List$Extra$span,
-			$author$project$Sightray$isProjection,
-			$author$project$Sightray$bouncesWithNeighborPoints(ray)));
+			$author$project$SightRay$isProjection,
+			$author$project$SightRay$bouncesWithNeighborPoints(ray)));
 };
-var $author$project$Sightray$uncurl = function (ray) {
+var $author$project$SightRay$uncurl = function (ray) {
 	return function (_v0) {
 		var projs = _v0.a;
 		var refs = _v0.b;
@@ -6858,9 +6857,9 @@ var $author$project$Sightray$uncurl = function (ray) {
 					return _Utils_Tuple2(
 						A2(
 							$elm$core$List$map,
-							$author$project$Sightray$bounceMirrorAcross(axis),
+							$author$project$SightRay$bounceMirrorAcross(axis),
 							refs),
-						A2($author$project$Sightray$mirrorEndAcross, axis, ray.end));
+						A2($author$project$SightRay$mirrorEndAcross, axis, ray.end));
 				},
 				A2(
 					$elm$core$Maybe$map,
@@ -6869,15 +6868,15 @@ var $author$project$Sightray$uncurl = function (ray) {
 					},
 					$elm$core$List$head(refs))));
 	}(
-		$author$project$Sightray$projectionsAndReflections(ray));
+		$author$project$SightRay$projectionsAndReflections(ray));
 };
-var $author$project$Sightray$uncurledSeries = $elm_community$list_extra$List$Extra$iterate($author$project$Sightray$uncurl);
+var $author$project$SightRay$uncurledSeries = $elm_community$list_extra$List$Extra$iterate($author$project$SightRay$uncurl);
 var $author$project$Diagram$checkAnimationFinished = F2(
 	function (animation, model) {
 		return _Utils_cmp(
 			animation.step,
 			$elm$core$List$length(
-				$author$project$Sightray$uncurledSeries(
+				$author$project$SightRay$uncurledSeries(
 					$author$project$Diagram$rayNormal(model))) - 1) > -1;
 	});
 var $elm$time$Time$Every = F2(
@@ -7338,13 +7337,35 @@ var $author$project$Main$subscriptions = function (model) {
 		$author$project$Diagram$subscriptions(
 			$author$project$Main$diagram(model)));
 };
-var $ianmackenzie$elm_geometry$Direction2d$negativeX = $ianmackenzie$elm_geometry$Geometry$Types$Direction2d(
-	{x: -1, y: 0});
-var $author$project$Diagram$reset = function (model) {
-	return _Utils_update(
-		model,
-		{dragging: false, mouseDragPos: $elm$core$Maybe$Nothing, mouseHoverArea: $elm$core$Maybe$Nothing, photoAttempt: $elm$core$Maybe$Nothing, sightDirection: $ianmackenzie$elm_geometry$Direction2d$negativeX, ticks: 0});
+var $elm$core$Basics$clamp = F3(
+	function (low, high, number) {
+		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
+	});
+var $elm_community$maybe_extra$Maybe$Extra$filter = F2(
+	function (f, m) {
+		if (m.$ === 'Just') {
+			var a = m.a;
+			return f(a) ? m : $elm$core$Maybe$Nothing;
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Diagram$hasSucceeded = function (model) {
+	return $elm_community$maybe_extra$Maybe$Extra$isJust(
+		$author$project$Diagram$successAnimation(model));
 };
+var $author$project$Main$resetDiagramIfSucceeded = F2(
+	function (index, dia) {
+		return A2(
+			$elm$core$Maybe$withDefault,
+			dia,
+			A2(
+				$elm_community$maybe_extra$Maybe$Extra$filter,
+				function (_v0) {
+					return $author$project$Diagram$hasSucceeded(dia);
+				},
+				A2($elm_community$list_extra$List$Extra$getAt, index, $author$project$Main$initialLevels)));
+	});
 var $author$project$Diagram$StepAnimation = {$: 'StepAnimation'};
 var $author$project$Diagram$NoItem = {$: 'NoItem'};
 var $author$project$Diagram$PhotoFail = function (a) {
@@ -7418,7 +7439,7 @@ var $ianmackenzie$elm_geometry$Geometry$Types$Polyline2d = function (a) {
 var $ianmackenzie$elm_geometry$Polyline2d$fromVertices = function (givenVertices) {
 	return $ianmackenzie$elm_geometry$Geometry$Types$Polyline2d(givenVertices);
 };
-var $author$project$Sightray$vertices = function (ray) {
+var $author$project$SightRay$vertices = function (ray) {
 	return A2(
 		$elm$core$List$cons,
 		ray.startPos,
@@ -7431,16 +7452,16 @@ var $author$project$Sightray$vertices = function (ray) {
 				ray.bounces),
 			_List_fromArray(
 				[
-					$author$project$Sightray$endPosFromEnd(ray.end)
+					$author$project$SightRay$endPosFromEnd(ray.end)
 				])));
 };
-var $author$project$Sightray$polyline = function (ray) {
+var $author$project$SightRay$polyline = function (ray) {
 	return $ianmackenzie$elm_geometry$Polyline2d$fromVertices(
-		$author$project$Sightray$vertices(ray));
+		$author$project$SightRay$vertices(ray));
 };
-var $author$project$Sightray$length = function (ray) {
+var $author$project$SightRay$length = function (ray) {
 	return $ianmackenzie$elm_geometry$Polyline2d$length(
-		$author$project$Sightray$polyline(ray));
+		$author$project$SightRay$polyline(ray));
 };
 var $author$project$Room$targetItem = function ($) {
 	return $.targetItem;
@@ -7466,7 +7487,7 @@ var $author$project$Diagram$nextPhotoAttempt = function (model) {
 		$elm$core$Maybe$Just(
 			$author$project$Room$targetItem(model.room))) && A2(
 		$author$project$Diagram$closeEnough,
-		$author$project$Sightray$length(ray),
+		$author$project$SightRay$length(ray),
 		model.sightDistance);
 	var _v2 = _Utils_Tuple3(
 		$author$project$Diagram$successAnimation(model),
@@ -7683,30 +7704,21 @@ var $author$project$Main$update = F2(
 						model.levelIndex,
 						$author$project$Diagram$update(dm),
 						model));
-			case 'PreviousLevel':
+			case 'ChangeLevel':
+				var amount = msg.a;
 				return $author$project$Shared$noCmds(
 					A3(
 						$author$project$Main$updateDiagramAtIndex,
 						model.levelIndex,
-						$author$project$Diagram$reset,
+						$author$project$Main$resetDiagramIfSucceeded(model.levelIndex),
 						_Utils_update(
 							model,
 							{
-								levelIndex: A2($elm$core$Basics$max, 0, model.levelIndex - 1)
-							})));
-			case 'NextLevel':
-				return $author$project$Shared$noCmds(
-					A3(
-						$author$project$Main$updateDiagramAtIndex,
-						model.levelIndex,
-						$author$project$Diagram$reset,
-						_Utils_update(
-							model,
-							{
-								levelIndex: A2(
-									$elm$core$Basics$min,
+								levelIndex: A3(
+									$elm$core$Basics$clamp,
+									0,
 									$elm$core$List$length(model.levels) - 1,
-									model.levelIndex + 1)
+									model.levelIndex + amount)
 							})));
 			default:
 				return $author$project$Shared$noCmds(model);
@@ -13545,7 +13557,12 @@ var $mdgriffith$elm_ui$Element$paddingXY = F2(
 					xFloat));
 		}
 	});
-var $mdgriffith$elm_ui$Internal$Model$Paragraph = {$: 'Paragraph'};
+var $mdgriffith$elm_ui$Element$Font$size = function (i) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$fontSize,
+		$mdgriffith$elm_ui$Internal$Model$FontSize(i));
+};
 var $mdgriffith$elm_ui$Internal$Model$SpacingStyle = F3(
 	function (a, b, c) {
 		return {$: 'SpacingStyle', a: a, b: b, c: c};
@@ -13564,34 +13581,6 @@ var $mdgriffith$elm_ui$Element$spacing = function (x) {
 			A2($mdgriffith$elm_ui$Internal$Model$spacingName, x, x),
 			x,
 			x));
-};
-var $mdgriffith$elm_ui$Element$paragraph = F2(
-	function (attrs, children) {
-		return A4(
-			$mdgriffith$elm_ui$Internal$Model$element,
-			$mdgriffith$elm_ui$Internal$Model$asParagraph,
-			$mdgriffith$elm_ui$Internal$Model$div,
-			A2(
-				$elm$core$List$cons,
-				$mdgriffith$elm_ui$Internal$Model$Describe($mdgriffith$elm_ui$Internal$Model$Paragraph),
-				A2(
-					$elm$core$List$cons,
-					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-					A2(
-						$elm$core$List$cons,
-						$mdgriffith$elm_ui$Element$spacing(5),
-						attrs))),
-			$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
-	});
-var $author$project$Main$paragraphAttrs = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$spacing(15)
-	]);
-var $mdgriffith$elm_ui$Element$Font$size = function (i) {
-	return A2(
-		$mdgriffith$elm_ui$Internal$Model$StyleClass,
-		$mdgriffith$elm_ui$Internal$Flag$fontSize,
-		$mdgriffith$elm_ui$Internal$Model$FontSize(i));
 };
 var $mdgriffith$elm_ui$Internal$Model$Text = function (a) {
 	return {$: 'Text', a: a};
@@ -13622,6 +13611,25 @@ var $mdgriffith$elm_ui$Internal$Model$Class = F2(
 	});
 var $mdgriffith$elm_ui$Internal$Flag$fontWeight = $mdgriffith$elm_ui$Internal$Flag$flag(13);
 var $mdgriffith$elm_ui$Element$Font$bold = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$fontWeight, $mdgriffith$elm_ui$Internal$Style$classes.bold);
+var $mdgriffith$elm_ui$Internal$Model$Paragraph = {$: 'Paragraph'};
+var $mdgriffith$elm_ui$Element$paragraph = F2(
+	function (attrs, children) {
+		return A4(
+			$mdgriffith$elm_ui$Internal$Model$element,
+			$mdgriffith$elm_ui$Internal$Model$asParagraph,
+			$mdgriffith$elm_ui$Internal$Model$div,
+			A2(
+				$elm$core$List$cons,
+				$mdgriffith$elm_ui$Internal$Model$Describe($mdgriffith$elm_ui$Internal$Model$Paragraph),
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					A2(
+						$elm$core$List$cons,
+						$mdgriffith$elm_ui$Element$spacing(5),
+						attrs))),
+			$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
+	});
 var $author$project$Main$yellow1 = A3($mdgriffith$elm_ui$Element$rgb, 0.85, 0.65, 0.4);
 var $author$project$Main$instructionsParagraph = F2(
 	function (levelIndex, sightDistance) {
@@ -13721,10 +13729,6 @@ var $author$project$Shared$constants = {containerHeight: 500, containerWidth: 50
 var $ianmackenzie$elm_float_extra$Float$Extra$interpolateFrom = F3(
 	function (start, end, parameter) {
 		return (parameter <= 0.5) ? (start + (parameter * (end - start))) : (end + ((1 - parameter) * (start - end)));
-	});
-var $elm$core$Basics$clamp = F3(
-	function (low, high, number) {
-		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
 	});
 var $elm$core$Basics$pow = _Basics_pow;
 var $elm_community$easing_functions$Ease$inCubic = function (time) {
@@ -14338,9 +14342,9 @@ var $author$project$Room$view = F2(
 				A2($elm$core$List$map, viewRoomItem, model.trees)));
 		return roomSvg;
 	});
-var $author$project$Sightray$AllAngles = {$: 'AllAngles'};
+var $author$project$SightRay$AllAngles = {$: 'AllAngles'};
 var $author$project$Diagram$DragStart = {$: 'DragStart'};
-var $author$project$Sightray$NoAngles = {$: 'NoAngles'};
+var $author$project$SightRay$NoAngles = {$: 'NoAngles'};
 var $elm$core$Basics$atan = _Basics_atan;
 var $elm_community$list_extra$List$Extra$initialize = F2(
 	function (n, f) {
@@ -14364,7 +14368,7 @@ var $elm_community$list_extra$List$Extra$initialize = F2(
 			});
 		return A2(step, n - 1, _List_Nil);
 	});
-var $author$project$Sightray$beam = F2(
+var $author$project$SightRay$beam = F2(
 	function (room, sightline) {
 		var numRays = 10;
 		var angleIncrement = function () {
@@ -14381,7 +14385,7 @@ var $author$project$Sightray$beam = F2(
 				$elm$core$Maybe$map,
 				function (sightDirection) {
 					return A2(
-						$author$project$Sightray$fromRoomAndProjectedPath,
+						$author$project$SightRay$fromRoomAndProjectedPath,
 						room,
 						function (dir) {
 							return A3(
@@ -14481,7 +14485,7 @@ var $author$project$Shared$interpolateLineFrom = F3(
 				$ianmackenzie$elm_geometry$LineSegment2d$endPoint(l2),
 				pct));
 	});
-var $author$project$Sightray$interpolateBounceFrom = F3(
+var $author$project$SightRay$interpolateBounceFrom = F3(
 	function (bounce1, bounce2, pct) {
 		return {
 			axis: A3($author$project$Shared$interpolateAxisFrom, bounce1.axis, bounce2.axis, pct),
@@ -14501,28 +14505,28 @@ var $author$project$Shared$interpolateLists = F4(
 			},
 			A2($elm_community$list_extra$List$Extra$zip, l1, l2));
 	});
-var $author$project$Sightray$updateEndPos = F2(
+var $author$project$SightRay$updateEndPos = F2(
 	function (upd, end) {
 		var newPos = upd(
-			$author$project$Sightray$endPosFromEnd(end));
+			$author$project$SightRay$endPosFromEnd(end));
 		if (end.$ === 'TooFar') {
-			return $author$project$Sightray$TooFar(newPos);
+			return $author$project$SightRay$TooFar(newPos);
 		} else {
 			var item = end.b;
-			return A2($author$project$Sightray$EndAtItem, newPos, item);
+			return A2($author$project$SightRay$EndAtItem, newPos, item);
 		}
 	});
-var $author$project$Sightray$interpolateFrom = F3(
+var $author$project$SightRay$interpolateFrom = F3(
 	function (ray1, ray2, pct) {
 		return {
-			bounces: A4($author$project$Shared$interpolateLists, $author$project$Sightray$interpolateBounceFrom, ray1.bounces, ray2.bounces, pct),
+			bounces: A4($author$project$Shared$interpolateLists, $author$project$SightRay$interpolateBounceFrom, ray1.bounces, ray2.bounces, pct),
 			end: A2(
-				$author$project$Sightray$updateEndPos,
+				$author$project$SightRay$updateEndPos,
 				function (ep1) {
 					return A3(
 						$author$project$Shared$interpolatePointFrom,
 						ep1,
-						$author$project$Sightray$endPosFromEnd(ray2.end),
+						$author$project$SightRay$endPosFromEnd(ray2.end),
 						pct);
 				},
 				ray1.end),
@@ -14549,7 +14553,7 @@ var $author$project$Diagram$rayPairForAnimation = F2(
 				A2($elm$core$Array$get, animation.step + 1, rs));
 		}(
 			$elm$core$Array$fromList(
-				$author$project$Sightray$uncurledSeries(ray)));
+				$author$project$SightRay$uncurledSeries(ray)));
 	});
 var $author$project$Diagram$transitionRay = F2(
 	function (animation, curledRay) {
@@ -14560,19 +14564,19 @@ var $author$project$Diagram$transitionRay = F2(
 				uncurledRay,
 				A3(
 					$elm$core$Maybe$map2,
-					$author$project$Sightray$interpolateFrom(uncurledRay),
+					$author$project$SightRay$interpolateFrom(uncurledRay),
 					nextUncurledRayM,
 					A2($elm$core$Maybe$map, $author$project$Diagram$pctForRay, animation.transitionPct)));
 		}(
 			A2($author$project$Diagram$rayPairForAnimation, animation, curledRay));
 	});
-var $author$project$Sightray$endPos = A2(
+var $author$project$SightRay$endPos = A2(
 	$elm$core$Basics$composeR,
 	function ($) {
 		return $.end;
 	},
-	$author$project$Sightray$endPosFromEnd);
-var $author$project$Sightray$lineAttrsDefault = function (zoomScale) {
+	$author$project$SightRay$endPosFromEnd);
+var $author$project$SightRay$lineAttrsDefault = function (zoomScale) {
 	return _List_fromArray(
 		[
 			$elm$svg$Svg$Attributes$fill('none'),
@@ -14585,10 +14589,10 @@ var $author$project$Sightray$lineAttrsDefault = function (zoomScale) {
 			A2($author$project$Shared$floatAttributeForZoom, zoomScale, 0.0))
 		]);
 };
-var $author$project$Sightray$lineAttrs = F2(
+var $author$project$SightRay$lineAttrs = F2(
 	function (zoomScale, customAttrs) {
 		return _Utils_ap(
-			$author$project$Sightray$lineAttrsDefault(zoomScale),
+			$author$project$SightRay$lineAttrsDefault(zoomScale),
 			customAttrs);
 	});
 var $ianmackenzie$elm_geometry_svg$Geometry$Svg$coordinatesString = function (point) {
@@ -14621,25 +14625,25 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$lineSegment2d = F2(
 				attributes),
 			_List_Nil);
 	});
-var $author$project$Sightray$reflections = A2($elm$core$Basics$composeR, $author$project$Sightray$projectionsAndReflections, $elm$core$Tuple$second);
-var $author$project$Sightray$viewProjectionWithOptions = F2(
+var $author$project$SightRay$reflections = A2($elm$core$Basics$composeR, $author$project$SightRay$projectionsAndReflections, $elm$core$Tuple$second);
+var $author$project$SightRay$viewProjectionWithOptions = F2(
 	function (options, ray) {
 		return A2(
 			$ianmackenzie$elm_geometry_svg$Geometry$Svg$lineSegment2d,
-			A2($author$project$Sightray$lineAttrs, options.zoomScale, options.attributes),
+			A2($author$project$SightRay$lineAttrs, options.zoomScale, options.attributes),
 			A2(
 				$ianmackenzie$elm_geometry$LineSegment2d$from,
 				ray.startPos,
 				A2(
 					$elm$core$Maybe$withDefault,
-					$author$project$Sightray$endPos(ray),
+					$author$project$SightRay$endPos(ray),
 					A2(
 						$elm$core$Maybe$map,
 						function ($) {
 							return $.point;
 						},
 						$elm$core$List$head(
-							$author$project$Sightray$reflections(ray))))));
+							$author$project$SightRay$reflections(ray))))));
 	});
 var $ianmackenzie$elm_geometry_svg$Geometry$Svg$polyline2d = F2(
 	function (attributes, polyline) {
@@ -14652,7 +14656,7 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$polyline2d = F2(
 				attributes),
 			_List_Nil);
 	});
-var $author$project$Sightray$angleArcRadius = $ianmackenzie$elm_units$Length$meters(0.25);
+var $author$project$SightRay$angleArcRadius = $ianmackenzie$elm_units$Length$meters(0.25);
 var $ianmackenzie$elm_units$Quantity$greaterThan = F2(
 	function (_v0, _v1) {
 		var y = _v0.a;
@@ -14753,7 +14757,7 @@ var $ianmackenzie$elm_geometry$Point2d$translateIn = F3(
 		return $ianmackenzie$elm_geometry$Geometry$Types$Point2d(
 			{x: p.x + (distance * d.x), y: p.y + (distance * d.y)});
 	});
-var $author$project$Sightray$angleArcs = function (ray) {
+var $author$project$SightRay$angleArcs = function (ray) {
 	var mkWedge = F2(
 		function (bounce, neighbor) {
 			var pointOnAxis = function (modDirection) {
@@ -14761,7 +14765,7 @@ var $author$project$Sightray$angleArcs = function (ray) {
 					$ianmackenzie$elm_geometry$Point2d$translateIn,
 					modDirection(
 						$ianmackenzie$elm_geometry$Axis2d$direction(bounce.axis)),
-					$author$project$Sightray$angleArcRadius,
+					$author$project$SightRay$angleArcRadius,
 					bounce.point);
 			};
 			return function (poa) {
@@ -14791,7 +14795,7 @@ var $author$project$Sightray$angleArcs = function (ray) {
 				bounce,
 				A2(mkWedge, bounce, next));
 		},
-		$author$project$Sightray$bouncesWithNeighborPoints(ray));
+		$author$project$SightRay$bouncesWithNeighborPoints(ray));
 };
 var $noahzgordon$elm_color_extra$Color$Interpolate$RGB = {$: 'RGB'};
 var $avh4$elm_color$Color$RgbaSpace = F4(
@@ -15202,7 +15206,7 @@ var $elm$core$Result$withDefault = F2(
 			return def;
 		}
 	});
-var $author$project$Sightray$angleColor = function (angle) {
+var $author$project$SightRay$angleColor = function (angle) {
 	return A4(
 		$noahzgordon$elm_color_extra$Color$Interpolate$interpolate,
 		$noahzgordon$elm_color_extra$Color$Interpolate$RGB,
@@ -15601,7 +15605,7 @@ var $author$project$Shared$viewLabel = F4(
 								]))))
 				]));
 	});
-var $author$project$Sightray$viewAngle = F2(
+var $author$project$SightRay$viewAngle = F2(
 	function (bounce, arc) {
 		var arcCenter = $ianmackenzie$elm_geometry$Arc2d$centerPoint(arc);
 		var sideLine = function (p) {
@@ -15622,7 +15626,7 @@ var $author$project$Sightray$viewAngle = F2(
 		};
 		var angle = $ianmackenzie$elm_geometry$Arc2d$sweptAngle(arc);
 		var color = $noahzgordon$elm_color_extra$Color$Convert$colorToHex(
-			$author$project$Sightray$angleColor(angle));
+			$author$project$SightRay$angleColor(angle));
 		return A2(
 			$elm$svg$Svg$g,
 			_List_Nil,
@@ -15674,7 +15678,7 @@ var $author$project$Sightray$viewAngle = F2(
 					$ianmackenzie$elm_geometry$Arc2d$endPoint(arc))
 				]));
 	});
-var $author$project$Sightray$viewAngles = function (ray) {
+var $author$project$SightRay$viewAngles = function (ray) {
 	return A2(
 		$elm$svg$Svg$g,
 		_List_Nil,
@@ -15687,15 +15691,15 @@ var $author$project$Sightray$viewAngles = function (ray) {
 					var arc2 = _v0.c;
 					return _List_fromArray(
 						[
-							A2($author$project$Sightray$viewAngle, bounce, arc1),
-							A2($author$project$Sightray$viewAngle, bounce, arc2)
+							A2($author$project$SightRay$viewAngle, bounce, arc1),
+							A2($author$project$SightRay$viewAngle, bounce, arc2)
 						]);
 				},
-				$author$project$Sightray$angleArcs(ray))));
+				$author$project$SightRay$angleArcs(ray))));
 };
-var $author$project$Sightray$viewWithOptions = F2(
+var $author$project$SightRay$viewWithOptions = F2(
 	function (options, ray) {
-		var _v0 = $author$project$Sightray$projectionsAndReflections(ray);
+		var _v0 = $author$project$SightRay$projectionsAndReflections(ray);
 		var projs = _v0.a;
 		var refs = _v0.b;
 		return A2(
@@ -15705,7 +15709,7 @@ var $author$project$Sightray$viewWithOptions = F2(
 				[
 					A2(
 					$ianmackenzie$elm_geometry_svg$Geometry$Svg$polyline2d,
-					A2($author$project$Sightray$lineAttrs, options.zoomScale, options.attributes),
+					A2($author$project$SightRay$lineAttrs, options.zoomScale, options.attributes),
 					$ianmackenzie$elm_geometry$Polyline2d$fromVertices(
 						function (vs) {
 							return A2(
@@ -15719,7 +15723,7 @@ var $author$project$Sightray$viewWithOptions = F2(
 									}(
 										A2(
 											$elm$core$Maybe$withDefault,
-											$author$project$Sightray$endPos(ray),
+											$author$project$SightRay$endPos(ray),
 											A2(
 												$elm$core$Maybe$map,
 												function ($) {
@@ -15736,7 +15740,7 @@ var $author$project$Sightray$viewWithOptions = F2(
 					A2(
 					$ianmackenzie$elm_geometry_svg$Geometry$Svg$polyline2d,
 					_Utils_ap(
-						$author$project$Sightray$lineAttrsDefault(options.zoomScale),
+						$author$project$SightRay$lineAttrsDefault(options.zoomScale),
 						options.attributes),
 					$ianmackenzie$elm_geometry$Polyline2d$fromVertices(
 						function (vs) {
@@ -15744,7 +15748,7 @@ var $author$project$Sightray$viewWithOptions = F2(
 								vs,
 								_List_fromArray(
 									[
-										$author$project$Sightray$endPos(ray)
+										$author$project$SightRay$endPos(ray)
 									]));
 						}(
 							A2(
@@ -15761,7 +15765,7 @@ var $author$project$Sightray$viewWithOptions = F2(
 							_List_Nil,
 							_List_fromArray(
 								[
-									$author$project$Sightray$viewAngles(ray)
+									$author$project$SightRay$viewAngles(ray)
 								]));
 					} else {
 						return $author$project$Shared$svgEmpty;
@@ -15794,7 +15798,7 @@ var $author$project$Diagram$viewBeam = F2(
 		var options = F2(
 			function (showAngles, attrs) {
 				return {
-					angleLabels: showAngles ? $author$project$Sightray$AllAngles : $author$project$Sightray$NoAngles,
+					angleLabels: showAngles ? $author$project$SightRay$AllAngles : $author$project$SightRay$NoAngles,
 					attributes: attrs,
 					projectionAttributes: _List_Nil,
 					zoomScale: $author$project$Diagram$currentZoomScale(model)
@@ -15828,7 +15832,7 @@ var $author$project$Diagram$viewBeam = F2(
 						A2(
 						$elm$core$List$indexedMap,
 						function (i) {
-							return $author$project$Sightray$viewWithOptions(
+							return $author$project$SightRay$viewWithOptions(
 								A2(
 									options,
 									false,
@@ -15851,13 +15855,13 @@ var $author$project$Diagram$viewBeam = F2(
 							$elm$core$List$map,
 							transitionIfAnimating,
 							A2(
-								$author$project$Sightray$beam,
+								$author$project$SightRay$beam,
 								model.room,
 								$author$project$Diagram$projectedSightline(model)))),
 						_List_fromArray(
 						[
 							A2(
-							$author$project$Sightray$viewWithOptions,
+							$author$project$SightRay$viewWithOptions,
 							A2(
 								options,
 								model.dragging,
@@ -15867,9 +15871,9 @@ var $author$project$Diagram$viewBeam = F2(
 									])),
 							ray),
 							A2(
-							$author$project$Sightray$viewProjectionWithOptions,
+							$author$project$SightRay$viewProjectionWithOptions,
 							{
-								angleLabels: $author$project$Sightray$NoAngles,
+								angleLabels: $author$project$SightRay$NoAngles,
 								attributes: _Utils_ap(
 									draggableAttrs,
 									_List_fromArray(
@@ -15897,7 +15901,7 @@ var $ianmackenzie$elm_geometry$Vector2d$meters = F2(
 		return $ianmackenzie$elm_geometry$Geometry$Types$Vector2d(
 			{x: x, y: y});
 	});
-var $author$project$Sightray$viewDistanceLabel = function (ray) {
+var $author$project$SightRay$viewDistanceLabel = function (ray) {
 	var endxy = function () {
 		var _v0 = ray.end;
 		if (_v0.$ === 'TooFar') {
@@ -15936,10 +15940,10 @@ var $author$project$Sightray$viewDistanceLabel = function (ray) {
 								return c / 100;
 							}(
 								$ianmackenzie$elm_units$Length$inCentimeters(
-									$author$project$Sightray$length(ray)))))))
+									$author$project$SightRay$length(ray)))))))
 			]));
 };
-var $author$project$Sightray$endItem = function (ray) {
+var $author$project$SightRay$endItem = function (ray) {
 	var _v0 = ray.end;
 	if (_v0.$ === 'TooFar') {
 		return $elm$core$Maybe$Nothing;
@@ -15968,7 +15972,7 @@ var $author$project$Diagram$viewPhotoAttempt = function (model) {
 							]),
 						A2($ianmackenzie$elm_geometry$Circle2d$atPoint, item.pos, $author$project$RoomItem$radius));
 				},
-				$author$project$Sightray$endItem(
+				$author$project$SightRay$endItem(
 					A2(
 						$author$project$Diagram$rayPairForAnimation,
 						animation,
@@ -16000,7 +16004,7 @@ var $author$project$Diagram$viewDiagramNormal = function (model) {
 						$author$project$Diagram$viewPhotoAttempt(model),
 						(_Utils_eq(
 						model.mouseHoverArea,
-						$elm$core$Maybe$Just($author$project$Diagram$HoverBeam)) && (!model.dragging)) ? $author$project$Sightray$viewDistanceLabel(
+						$elm$core$Maybe$Just($author$project$Diagram$HoverBeam)) && (!model.dragging)) ? $author$project$SightRay$viewDistanceLabel(
 						$author$project$Diagram$rayNormal(model)) : $author$project$Shared$svgEmpty
 					]))));
 };
@@ -16282,8 +16286,8 @@ var $author$project$Room$mirrorAcross = F2(
 			wallShape: A2($ianmackenzie$elm_geometry$Polygon2d$mirrorAcross, axis, room.wallShape)
 		};
 	});
-var $author$project$Sightray$projections = A2($elm$core$Basics$composeR, $author$project$Sightray$projectionsAndReflections, $elm$core$Tuple$first);
-var $author$project$Sightray$hallway = F2(
+var $author$project$SightRay$projections = A2($elm$core$Basics$composeR, $author$project$SightRay$projectionsAndReflections, $elm$core$Tuple$first);
+var $author$project$SightRay$hallway = F2(
 	function (room, ray) {
 		var reflectRoom = F2(
 			function (r, projs) {
@@ -16300,7 +16304,7 @@ var $author$project$Sightray$hallway = F2(
 			$elm$core$List$map,
 			reflectRoom(room),
 			$elm_community$list_extra$List$Extra$inits(
-				$author$project$Sightray$projections(ray)));
+				$author$project$SightRay$projections(ray)));
 	});
 var $author$project$RoomItem$setEmoji = F2(
 	function (emoji, item) {
@@ -16387,9 +16391,9 @@ var $author$project$Diagram$viewDiagramSuccess = F2(
 			$elm_community$list_extra$List$Extra$last,
 			A2(
 				$elm$core$Maybe$map,
-				$author$project$Sightray$hallway(model.room),
-				$author$project$Sightray$uncurl(currentRay)));
-		var reflectedRooms = A2($author$project$Sightray$hallway, model.room, currentRay);
+				$author$project$SightRay$hallway(model.room),
+				$author$project$SightRay$uncurl(currentRay)));
+		var reflectedRooms = A2($author$project$SightRay$hallway, model.room, currentRay);
 		var farthestRoom = A2(
 			$elm$core$Maybe$withDefault,
 			model.room,
@@ -16516,8 +16520,9 @@ var $author$project$Diagram$view = function (model) {
 					]))
 			]));
 };
-var $author$project$Main$NextLevel = {$: 'NextLevel'};
-var $author$project$Main$PreviousLevel = {$: 'PreviousLevel'};
+var $author$project$Main$ChangeLevel = function (a) {
+	return {$: 'ChangeLevel', a: a};
+};
 var $mdgriffith$elm_ui$Internal$Model$Button = {$: 'Button'};
 var $elm$json$Json$Encode$bool = _Json_wrap;
 var $elm$html$Html$Attributes$boolProperty = F2(
@@ -16670,6 +16675,126 @@ var $mdgriffith$elm_ui$Element$Background$color = function (clr) {
 			'background-color',
 			clr));
 };
+var $mdgriffith$elm_ui$Internal$Model$Focus = {$: 'Focus'};
+var $mdgriffith$elm_ui$Internal$Model$PseudoSelector = F2(
+	function (a, b) {
+		return {$: 'PseudoSelector', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Flag$focus = $mdgriffith$elm_ui$Internal$Flag$flag(31);
+var $mdgriffith$elm_ui$Internal$Model$AlignY = function (a) {
+	return {$: 'AlignY', a: a};
+};
+var $mdgriffith$elm_ui$Internal$Model$Nearby = F2(
+	function (a, b) {
+		return {$: 'Nearby', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Model$TransformComponent = F2(
+	function (a, b) {
+		return {$: 'TransformComponent', a: a, b: b};
+	});
+var $elm$virtual_dom$VirtualDom$mapAttribute = _VirtualDom_mapAttribute;
+var $mdgriffith$elm_ui$Internal$Model$mapAttrFromStyle = F2(
+	function (fn, attr) {
+		switch (attr.$) {
+			case 'NoAttribute':
+				return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
+			case 'Describe':
+				var description = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$Describe(description);
+			case 'AlignX':
+				var x = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$AlignX(x);
+			case 'AlignY':
+				var y = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$AlignY(y);
+			case 'Width':
+				var x = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$Width(x);
+			case 'Height':
+				var x = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$Height(x);
+			case 'Class':
+				var x = attr.a;
+				var y = attr.b;
+				return A2($mdgriffith$elm_ui$Internal$Model$Class, x, y);
+			case 'StyleClass':
+				var flag = attr.a;
+				var style = attr.b;
+				return A2($mdgriffith$elm_ui$Internal$Model$StyleClass, flag, style);
+			case 'Nearby':
+				var location = attr.a;
+				var elem = attr.b;
+				return A2(
+					$mdgriffith$elm_ui$Internal$Model$Nearby,
+					location,
+					A2($mdgriffith$elm_ui$Internal$Model$map, fn, elem));
+			case 'Attr':
+				var htmlAttr = attr.a;
+				return $mdgriffith$elm_ui$Internal$Model$Attr(
+					A2($elm$virtual_dom$VirtualDom$mapAttribute, fn, htmlAttr));
+			default:
+				var fl = attr.a;
+				var trans = attr.b;
+				return A2($mdgriffith$elm_ui$Internal$Model$TransformComponent, fl, trans);
+		}
+	});
+var $mdgriffith$elm_ui$Internal$Model$removeNever = function (style) {
+	return A2($mdgriffith$elm_ui$Internal$Model$mapAttrFromStyle, $elm$core$Basics$never, style);
+};
+var $mdgriffith$elm_ui$Internal$Model$unwrapDecsHelper = F2(
+	function (attr, _v0) {
+		var styles = _v0.a;
+		var trans = _v0.b;
+		var _v1 = $mdgriffith$elm_ui$Internal$Model$removeNever(attr);
+		switch (_v1.$) {
+			case 'StyleClass':
+				var style = _v1.b;
+				return _Utils_Tuple2(
+					A2($elm$core$List$cons, style, styles),
+					trans);
+			case 'TransformComponent':
+				var flag = _v1.a;
+				var component = _v1.b;
+				return _Utils_Tuple2(
+					styles,
+					A2($mdgriffith$elm_ui$Internal$Model$composeTransformation, trans, component));
+			default:
+				return _Utils_Tuple2(styles, trans);
+		}
+	});
+var $mdgriffith$elm_ui$Internal$Model$unwrapDecorations = function (attrs) {
+	var _v0 = A3(
+		$elm$core$List$foldl,
+		$mdgriffith$elm_ui$Internal$Model$unwrapDecsHelper,
+		_Utils_Tuple2(_List_Nil, $mdgriffith$elm_ui$Internal$Model$Untransformed),
+		attrs);
+	var styles = _v0.a;
+	var transform = _v0.b;
+	return A2(
+		$elm$core$List$cons,
+		$mdgriffith$elm_ui$Internal$Model$Transform(transform),
+		styles);
+};
+var $mdgriffith$elm_ui$Element$focused = function (decs) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$focus,
+		A2(
+			$mdgriffith$elm_ui$Internal$Model$PseudoSelector,
+			$mdgriffith$elm_ui$Internal$Model$Focus,
+			$mdgriffith$elm_ui$Internal$Model$unwrapDecorations(decs)));
+};
+var $mdgriffith$elm_ui$Internal$Model$Active = {$: 'Active'};
+var $mdgriffith$elm_ui$Internal$Flag$active = $mdgriffith$elm_ui$Internal$Flag$flag(32);
+var $mdgriffith$elm_ui$Element$mouseDown = function (decs) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$active,
+		A2(
+			$mdgriffith$elm_ui$Internal$Model$PseudoSelector,
+			$mdgriffith$elm_ui$Internal$Model$Active,
+			$mdgriffith$elm_ui$Internal$Model$unwrapDecorations(decs)));
+};
 var $mdgriffith$elm_ui$Internal$Model$AsRow = {$: 'AsRow'};
 var $mdgriffith$elm_ui$Internal$Model$asRow = $mdgriffith$elm_ui$Internal$Model$AsRow;
 var $mdgriffith$elm_ui$Element$row = F2(
@@ -16715,19 +16840,37 @@ var $author$project$Main$viewLevelControls = function (levelIndex) {
 				[
 					A2(
 					$mdgriffith$elm_ui$Element$Input$button,
-					_List_Nil,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$focused(_List_Nil),
+							$mdgriffith$elm_ui$Element$mouseDown(
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$Font$color($author$project$Main$veryLightGrey)
+								]))
+						]),
 					{
 						label: $mdgriffith$elm_ui$Element$text('<'),
-						onPress: $elm$core$Maybe$Just($author$project$Main$PreviousLevel)
+						onPress: $elm$core$Maybe$Just(
+							$author$project$Main$ChangeLevel(-1))
 					}),
 					$mdgriffith$elm_ui$Element$text(
 					'Level ' + $elm$core$String$fromInt(1 + levelIndex)),
 					A2(
 					$mdgriffith$elm_ui$Element$Input$button,
-					_List_Nil,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$focused(_List_Nil),
+							$mdgriffith$elm_ui$Element$mouseDown(
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$Font$color($author$project$Main$veryLightGrey)
+								]))
+						]),
 					{
 						label: $mdgriffith$elm_ui$Element$text('>'),
-						onPress: $elm$core$Maybe$Just($author$project$Main$NextLevel)
+						onPress: $elm$core$Maybe$Just(
+							$author$project$Main$ChangeLevel(1))
 					})
 				])));
 };
@@ -16786,6 +16929,56 @@ var $author$project$Main$viewDiagramContainer = function (model) {
 					]))
 			]));
 };
+var $author$project$Main$paragraphAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$spacing(15)
+	]);
+var $author$project$Main$viewScenario = A2(
+	$mdgriffith$elm_ui$Element$column,
+	_List_fromArray(
+		[
+			$mdgriffith$elm_ui$Element$spacing(30)
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$mdgriffith$elm_ui$Element$el,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$Region$heading(3),
+					$mdgriffith$elm_ui$Element$Font$size(22)
+				]),
+			$mdgriffith$elm_ui$Element$text('Scenario')),
+			A2(
+			$mdgriffith$elm_ui$Element$paragraph,
+			$author$project$Main$paragraphAttrs,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$text('Pat the Cat 🐈‍ is an avid wildlife photographer. '),
+					$mdgriffith$elm_ui$Element$text('She recently bought a fancy new camera, '),
+					$mdgriffith$elm_ui$Element$text('and is excited to start taking some pics. '),
+					$mdgriffith$elm_ui$Element$text('She is especially curious to test out the range '),
+					$mdgriffith$elm_ui$Element$text('of its zoom capabilities.')
+				])),
+			A2(
+			$mdgriffith$elm_ui$Element$paragraph,
+			$author$project$Main$paragraphAttrs,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$text('Arriving home, Pat enters her '),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_Nil,
+					$mdgriffith$elm_ui$Element$text('Infinite Forest Box, ')),
+					$mdgriffith$elm_ui$Element$text('a small room with 4 adjustable mirrors for walls. '),
+					$mdgriffith$elm_ui$Element$text('The room doesn\'t contain much, just Garrett the Parrot 🦜 '),
+					$mdgriffith$elm_ui$Element$text('and a few potted plants 🪴. '),
+					$mdgriffith$elm_ui$Element$text('But the light bouncing around off the mirrored walls '),
+					$mdgriffith$elm_ui$Element$text('gives Pat the illusion of standing in an "infinite forest" '),
+					$mdgriffith$elm_ui$Element$text('surrounded by many plants and birds: '),
+					$mdgriffith$elm_ui$Element$text(' some close by, and others far away...')
+				]))
+		]));
 var $author$project$Main$view = function (model) {
 	return A2(
 		$mdgriffith$elm_ui$Element$layout,
@@ -16809,7 +17002,7 @@ var $author$project$Main$view = function (model) {
 					[
 						$mdgriffith$elm_ui$Element$centerX,
 						A2($mdgriffith$elm_ui$Element$paddingXY, 20, 20),
-						$mdgriffith$elm_ui$Element$spacing(30),
+						$mdgriffith$elm_ui$Element$spacing(50),
 						$mdgriffith$elm_ui$Element$Font$size(16),
 						$mdgriffith$elm_ui$Element$Font$family(
 						_List_fromArray(
@@ -16826,47 +17019,10 @@ var $author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								$mdgriffith$elm_ui$Element$Region$heading(1),
-								$mdgriffith$elm_ui$Element$Font$size(30),
-								A2($mdgriffith$elm_ui$Element$paddingXY, 0, 20)
+								$mdgriffith$elm_ui$Element$Font$size(30)
 							]),
 						$mdgriffith$elm_ui$Element$text('Pat\'s Infinite Forest Box')),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Region$heading(3),
-								$mdgriffith$elm_ui$Element$Font$size(22)
-							]),
-						$mdgriffith$elm_ui$Element$text('Scenario')),
-						A2(
-						$mdgriffith$elm_ui$Element$paragraph,
-						$author$project$Main$paragraphAttrs,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$text('Pat the Cat 🐈‍ is an avid wildlife photographer. '),
-								$mdgriffith$elm_ui$Element$text('She recently bought a fancy new camera, '),
-								$mdgriffith$elm_ui$Element$text('and is excited to start taking some pics. '),
-								$mdgriffith$elm_ui$Element$text('She is especially curious to test out the range '),
-								$mdgriffith$elm_ui$Element$text('of its zoom capabilities.')
-							])),
-						A2(
-						$mdgriffith$elm_ui$Element$paragraph,
-						$author$project$Main$paragraphAttrs,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$text('Arriving home, Pat enters her '),
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_Nil,
-								$mdgriffith$elm_ui$Element$text('Infinite Forest Box, ')),
-								$mdgriffith$elm_ui$Element$text('a small room with 4 adjustable mirrors for walls. '),
-								$mdgriffith$elm_ui$Element$text('The room doesn\'t contain much, just Garrett the Parrot 🦜 '),
-								$mdgriffith$elm_ui$Element$text('and a few potted plants 🪴. '),
-								$mdgriffith$elm_ui$Element$text('But the light bouncing around off the mirrored walls '),
-								$mdgriffith$elm_ui$Element$text('gives Pat the illusion of standing in an "infinite forest" '),
-								$mdgriffith$elm_ui$Element$text('surrounded by many plants and birds: '),
-								$mdgriffith$elm_ui$Element$text(' some close by, and others far away...')
-							])),
+						$author$project$Main$viewScenario,
 						$author$project$Main$viewDiagramContainer(model)
 					]))));
 };
