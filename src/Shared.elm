@@ -23,9 +23,8 @@ import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Vector2d exposing (Vector2d)
 
--- Coordinate systems --
 
--- Geometry types with the units and coords type parameters applied --
+-- Geometry types with the units and coordinates type parameters applied --
 type alias Arc = Arc2d Meters SceneCoords
 type alias Axis = Axis2d Meters SceneCoords
 type alias Circle = Circle2d Meters SceneCoords
@@ -44,9 +43,6 @@ type SceneCoords = SceneCoords
 {- origin point at the top left of the frame, x -> right, y -> down -}
 type SvgCoords = SvgCoords 
 
-pixelsPerMeter = 
-    pixels 100
-        |> Quantity.per (Length.meters 1)
 
 -- Frames --
 
@@ -55,34 +51,9 @@ svgFrame =
     Frame2d.atOrigin
         |> Frame2d.translateBy
             (Vector2d.xy
-                (pixels <| -constants.containerWidth / 2.0)
-                (pixels <| constants.containerHeight / 2.0))
+                (pixels <| -svgWidth / 2.0)
+                (pixels <| svgHeight / 2.0))
         |> Frame2d.reverseY
-        
-
-viewLabel : String -> Point -> Vector -> String -> Svg msg
-viewLabel color startPoint vector text = 
-    let 
-        endPoint = Point2d.translateBy vector startPoint 
-        textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
-        fontSize = 0.125
-    in
-    Svg.g []
-        [ Svg.circle2d [ Attr.fill color ]
-            (Circle2d.atPoint startPoint (Length.meters 0.02))
-        , Svg.lineSegment2d 
-            [ Attr.fill "none", Attr.stroke color, Attr.strokeWidth (String.fromFloat 0.01) ]
-            (LineSegment2d.from startPoint endPoint)
-        , Svg.text_ 
-            [ Attr.fontSize <| String.fromFloat fontSize
-            , Attr.x <| String.fromFloat (-0.5 * fontSize)
-            , Attr.fill color
-            , Attr.alignmentBaseline "central"
-            ] 
-            [ Svg.text text ]
-            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
-            |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
-        ]
 
 playerFrame : Point -> Angle -> Frame2d Meters SceneCoords { defines : SceneCoords }
 playerFrame viewerPos viewerAngle = 
@@ -91,35 +62,33 @@ playerFrame viewerPos viewerAngle =
         |> Frame2d.translateBy (Vector2d.from Point2d.origin viewerPos)
         |> Frame2d.relativeTo roomFrame
 
--- TODO delete this?
 roomFrame : Frame2d Meters SceneCoords { defines : SceneCoords }
 roomFrame = 
     Frame2d.atOrigin
-    -- playerFrame model
-        -- |> Frame2d.translateBy (Vector2d.reverse 
-        --     (Vector2d.from Point2d.origin model.viewerPos))
-        -- |> Frame2d.rotateAround (Frame2d.originPoint <| playerFrame model) 
-        --     (Quantity.negate model.viewerAngle)
-
-viewFrame : String -> Frame2d Meters SceneCoords { defines : SceneCoords } -> Svg msg
-viewFrame color frame = 
-    let originPoint = Frame2d.originPoint frame in
-    Svg.g 
-        []
-        [ Svg.rectangle2d [ Attr.fill color, Attr.opacity "0.2" ]
-            (Rectangle2d.from originPoint
-                (originPoint
-                    |> Point2d.translateIn (Frame2d.xDirection frame) (Length.meters 0.25)
-                    |> Point2d.translateIn (Frame2d.yDirection frame) (Length.meters 0.95)
-                )
-            )
-        ]
 
 
-constants =
-    { containerWidth = 500
-    , containerHeight = 500 
+
+-- Constants --
+colors = 
+    { yellow1 = "#eea71f"
+    , yellowLight = "#f2b135"
+    , yellowDark = "#df9912"
+    , blue1 = "#2c6fef"
+    , red1 = "#e1503c"
+    , green1 = "#179e7e"
+    , greyVeryLight = "#eee"
+    , greyMedium = "#888"
+    , greyDark = "#555"
     }
+
+svgWidth = 500
+svgHeight = 500 
+
+pixelsPerMeter = 
+    pixels 100
+        |> Quantity.per (Length.meters 1)
+
+-- Misc Util --
 
 noCmds : a -> (a, Cmd msg)
 noCmds x = ( x, Cmd.none )
@@ -135,8 +104,84 @@ sign : number -> number
 sign n = 
     if n < 0 then -1 else 1
 
+debugLogF : String -> (a -> b) -> a -> a
+debugLogF str f a =
+    let _ = Debug.log str (f a) in 
+    a
 
 
+takeMin : (a -> Quantity number c) -> a -> a -> a
+takeMin quantify p q = 
+    case Quantity.compare (quantify p) (quantify q) of
+        GT -> q
+        _ -> p
+
+
+
+-- Geometry and Math --
+
+angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
+angleDiff pivot p1 p2 = 
+    let
+        getAngle p = 
+            Direction2d.from pivot p 
+                |> Maybe.map Direction2d.toAngle
+    in
+        Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
+
+segmentSamplePoints : LineSegment -> List Point
+segmentSamplePoints line = 
+    let sampleCount = 25 in
+    List.range 0 sampleCount 
+        |> List.map (\i -> 
+            LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
+        )
+
+{-
+Normalizes an angle to the range of -180 thru 180
+This ensures the angle doesn't go the "wrong way" around the circle, ie the long way around
+normalizeAngle (Angle.degrees 181) == Angle.degrees -179
+normalizeAngle (Angle.degrees -181) == Angle.degrees 179
+TODO -- only works for inputs in the range -360 thru 360, could fix this with modular math
+-}
+normalizeAngle : Angle -> Angle 
+normalizeAngle angle = 
+    let 
+        outOfRange = 
+            (angle |> Quantity.greaterThan (Angle.degrees 180))
+                || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
+
+        normalizeTooBig a = 
+            if a |> Quantity.greaterThan (Angle.degrees 180) then 
+                a |> Quantity.minus (Angle.degrees 360)
+            else 
+                a
+
+        normalizeTooNegative a = 
+            if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
+                a |> Quantity.plus (Angle.degrees 360)
+            else 
+                a
+    in
+        angle 
+            |> normalizeTooBig
+            |> normalizeTooNegative
+
+triangleForArc : Arc -> Triangle
+triangleForArc arc = 
+    Triangle2d.from (Arc2d.centerPoint arc)
+        (Arc2d.startPoint arc) 
+        (Arc2d.endPoint arc)
+
+projectedSightline : Point -> Direction -> Length -> LineSegment
+projectedSightline viewerPos viewerDirection sightDistance =
+    LineSegment2d.fromPointAndVector viewerPos
+        (Vector2d.withLength sightDistance 
+            (Frame2d.xDirection (playerFrame viewerPos 
+                (Direction2d.toAngle viewerDirection))))
+
+
+-- Interpolation --
 
 type alias Interpolation a = a -> a -> Float -> a
 
@@ -172,7 +217,6 @@ interpolateAngleFrom a1 a2 pct =
         |> Quantity.multiplyBy pct
         |> Quantity.plus a1
 
-
 interpolateAxisFrom : Interpolation Axis 
 interpolateAxisFrom a1 a2 pct = 
     Axis2d.through 
@@ -180,104 +224,41 @@ interpolateAxisFrom a1 a2 pct =
         (interpolateDirectionFrom (Axis2d.direction a1) (Axis2d.direction a2) pct)
 
 
-colors = 
-    { yellow1 = "#eea71f"
-    , yellowLight = "#f2b135"
-    , yellowDark = "#df9912"
-    , blue1 = "#2c6fef"
-    , red1 = "#e1503c"
-    , green1 = "#179e7e"
-    , greyVeryLight = "#eee"
-    , greyMedium = "#888"
-    , greyDark = "#555"
-    }
+-- Svg --
 
-
-debugLogF : String -> (a -> b) -> a -> a
-debugLogF str f a =
-    let _ = Debug.log str (f a) in 
-    a
-
-
-angleDiff : Point2d u c -> Point2d u c -> Point2d u c -> Maybe Angle
-angleDiff pivot p1 p2 = 
-    let
-        getAngle p = 
-            Direction2d.from pivot p 
-                |> Maybe.map Direction2d.toAngle
-                -- |> debugLogF "two points" (\m -> (m, pivot, p))
-    in
-        Maybe.map2 Quantity.difference (getAngle p2) (getAngle p1)
-            -- |> Debug.log "anglediff retval"
-
+floatAttributeForZoom : Float -> Float -> String
+floatAttributeForZoom zoomScale f = 
+    f / zoomScale |> String.fromFloat
 
 svgEmpty : Svg msg 
 svgEmpty = 
     Svg.g [] []
-
-segmentSamplePoints : LineSegment -> List Point
-segmentSamplePoints line = 
-    let sampleCount = 25 in
-    List.range 0 sampleCount 
-        |> List.map (\i -> 
-            LineSegment2d.interpolate line (toFloat i / toFloat sampleCount)
-        )
-
-projectedSightline : Point -> Direction -> Length -> LineSegment
-projectedSightline viewerPos viewerDirection sightDistance =
-    LineSegment2d.fromPointAndVector viewerPos
-        (Vector2d.withLength sightDistance 
-            (Frame2d.xDirection (playerFrame viewerPos 
-                (Direction2d.toAngle viewerDirection))))
-
-{-
-Normalizes an angle to the range of -180 thru 180
-This ensures the angle doesn't go the "wrong way" around the circle, ie the long way around
-normalizeAngle (Angle.degrees 181) == Angle.degrees -179
-normalizeAngle (Angle.degrees -181) == Angle.degrees 179
-TODO -- only works for inputs in the range -360 thru 360, could fix this with modular math
--}
-normalizeAngle : Angle -> Angle 
-normalizeAngle angle = 
-    let 
-        outOfRange = 
-            (angle |> Quantity.greaterThan (Angle.degrees 180))
-                || (angle |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate))
-
-        normalizeTooBig a = 
-            if a |> Quantity.greaterThan (Angle.degrees 180) then 
-                a |> Quantity.minus (Angle.degrees 360)
-            else 
-                a
-
-        normalizeTooNegative a = 
-            if a |> Quantity.lessThan (Angle.degrees 180 |> Quantity.negate) then 
-                a |> Quantity.plus (Angle.degrees 360)
-            else 
-                a
-    in
-        angle 
-            |> normalizeTooBig
-            |> normalizeTooNegative
-
-takeMin : (a -> Quantity number c) -> a -> a -> a
-takeMin quantify p q = 
-    case Quantity.compare (quantify p) (quantify q) of
-        GT -> q
-        _ -> p
 
 debugCircle : String -> Point -> Svg msg
 debugCircle color pos = 
     Svg.circle2d [ Attr.fill color ]
         (Circle2d.atPoint pos (Length.meters 0.125))
 
-
-floatAttributeForZoom zoomScale f = 
-    f / zoomScale |> String.fromFloat
-
-
-triangleForArc : Arc -> Triangle
-triangleForArc arc = 
-    Triangle2d.from (Arc2d.centerPoint arc)
-        (Arc2d.startPoint arc) 
-        (Arc2d.endPoint arc)
+svgLabel : String -> Point -> Vector -> String -> Svg msg
+svgLabel color startPoint vector text = 
+    let 
+        endPoint = Point2d.translateBy vector startPoint 
+        textPoint = Point2d.translateBy (Vector2d.scaleBy 1.5 vector) startPoint
+        fontSize = 0.125
+    in
+    Svg.g []
+        [ Svg.circle2d [ Attr.fill color ]
+            (Circle2d.atPoint startPoint (Length.meters 0.02))
+        , Svg.lineSegment2d 
+            [ Attr.fill "none", Attr.stroke color, Attr.strokeWidth (String.fromFloat 0.01) ]
+            (LineSegment2d.from startPoint endPoint)
+        , Svg.text_ 
+            [ Attr.fontSize <| String.fromFloat fontSize
+            , Attr.x <| String.fromFloat (-0.5 * fontSize)
+            , Attr.fill color
+            , Attr.alignmentBaseline "central"
+            ] 
+            [ Svg.text text ]
+            |> Svg.mirrorAcross (Axis2d.through Point2d.origin Direction2d.x)
+            |> Svg.translateBy (Vector2d.from Point2d.origin textPoint)
+        ]

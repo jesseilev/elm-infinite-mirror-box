@@ -482,7 +482,7 @@ viewDistanceLabel ray =
         [ Svg.circle2d
             [ Attr.fill "none", Attr.strokeWidth "0.01", Attr.stroke Shared.colors.greyMedium ]
             (Circle2d.atPoint endxy RoomItem.radius)
-        , Shared.viewLabel Shared.colors.greyMedium endxy (Vector2d.meters 0.1 0.3) 
+        , Shared.svgLabel Shared.colors.greyMedium endxy (Vector2d.meters 0.1 0.3) 
             (length ray 
                 |> Length.inCentimeters 
                 |> (\c -> c / 100) 
@@ -552,7 +552,7 @@ viewAngle bounce arc =
             ] 
             arc
         , Svg.triangle2d [ Attr.fill color ] (Shared.triangleForArc arc)
-        , Shared.viewLabel Shared.colors.greyDark
+        , Shared.svgLabel Shared.colors.greyDark
             (LineSegment2d.from arcCenter (Arc2d.midpoint arc)
                 |> (\l -> LineSegment2d.interpolate l 0.7)
             )

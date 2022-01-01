@@ -152,7 +152,7 @@ viewScenario =
             , El.el [ ] (El.text "Infinite Forest Box, ")
             , El.text "a small room with 4 adjustable mirrors for walls. "
             , El.text "The room doesn't contain much, just Garrett the Parrot 🦜 "
-            , El.text "and a few potted plants 🪴. "
+            , El.text "and a few potted plants 🌱. "
             , El.text "But the light bouncing around off the mirrored walls "
             , El.text """gives Pat the illusion of standing in an "infinite forest" """
             , El.text "surrounded by many plants and birds: "

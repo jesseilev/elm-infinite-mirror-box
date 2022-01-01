@@ -359,8 +359,8 @@ view model =
         , Pointer.onLeave (\_ -> MouseHoverOver Nothing)
         ]
         [ Svg.svg 
-            [ Attr.width (Shared.constants.containerWidth |> String.fromFloat)
-            , Attr.height (Shared.constants.containerHeight |> String.fromFloat)
+            [ Attr.width (Shared.svgWidth |> String.fromFloat)
+            , Attr.height (Shared.svgHeight |> String.fromFloat)
             ]
             [ Svg.g 
                 []
@@ -561,10 +561,5 @@ mouseToSceneCoords zoomScale (x, y) =
         |> Point2d.placeIn Shared.svgFrame
         |> Point2d.at_ (pixelsPerMeterWithZoomScale zoomScale)
 
-svgToSceneCoords : Frame2d Pixels globalC { defines : localC } -> Svg msg -> Svg msg
-svgToSceneCoords localFrame svg =
-    svg 
-        |> Svg.mirrorAcross Axis2d.x 
-        |> Svg.placeIn localFrame
 
 
