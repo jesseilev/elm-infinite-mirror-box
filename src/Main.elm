@@ -128,7 +128,7 @@ view model =
                 , Font.color darkGrey
                 ]
                 [ El.el [ Region.heading 1, Font.size 30 ] 
-                    <| El.text "Pat's Infinite Forest Box"
+                    <| El.text "Infinite Forest Box"
                 , viewScenario
                 , viewDiagramContainer model
                 ]

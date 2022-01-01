@@ -14106,8 +14106,20 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$relativeTo = function (frame) {
 			$ianmackenzie$elm_geometry$Frame2d$copy(frame),
 			$ianmackenzie$elm_geometry$Frame2d$atOrigin));
 };
-var $author$project$Shared$svgEmpty = A2($elm$svg$Svg$g, _List_Nil, _List_Nil);
 var $author$project$RoomItem$create = $author$project$RoomItem$RoomItem;
+var $elm$core$Debug$log = _Debug_log;
+var $author$project$Room$setPlayerEmoji = F2(
+	function (emoji, room) {
+		return A2(
+			$elm$core$Debug$log,
+			'set emoji',
+			_Utils_update(
+				room,
+				{
+					playerItem: A2($author$project$RoomItem$create, room.playerItem.pos, emoji)
+				}));
+	});
+var $author$project$Shared$svgEmpty = A2($elm$svg$Svg$g, _List_Nil, _List_Nil);
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
 var $author$project$Shared$floatAttributeForZoom = F2(
 	function (zoomScale, f) {
@@ -15982,6 +15994,7 @@ var $author$project$Diagram$viewPhotoAttempt = function (model) {
 	}
 };
 var $author$project$Diagram$viewDiagramNormal = function (model) {
+	var playerEmoji = model.dragging ? $author$project$RoomItem$emojis.camera : $author$project$RoomItem$emojis.cat;
 	return A2(
 		$ianmackenzie$elm_geometry_svg$Geometry$Svg$relativeTo,
 		$author$project$Shared$svgFrame,
@@ -15996,7 +16009,7 @@ var $author$project$Diagram$viewDiagramNormal = function (model) {
 						A2(
 						$author$project$Room$view,
 						$author$project$Diagram$currentZoomScale(model),
-						model.room),
+						A2($author$project$Room$setPlayerEmoji, playerEmoji, model.room)),
 						A2(
 						$author$project$Diagram$viewBeam,
 						$author$project$Diagram$successAnimation(model),
@@ -16379,6 +16392,7 @@ var $elm_community$maybe_extra$Maybe$Extra$toList = function (m) {
 };
 var $author$project$Diagram$viewDiagramSuccess = F2(
 	function (model, animation) {
+		var realRoom = A2($author$project$Room$setPlayerEmoji, $author$project$RoomItem$emojis.cameraFlash, model.room);
 		var initialRay = $author$project$Diagram$rayNormal(model);
 		var _v0 = A2(
 			$author$project$Diagram$transitionRay,
@@ -16391,12 +16405,12 @@ var $author$project$Diagram$viewDiagramSuccess = F2(
 			$elm_community$list_extra$List$Extra$last,
 			A2(
 				$elm$core$Maybe$map,
-				$author$project$SightRay$hallway(model.room),
+				$author$project$SightRay$hallway(realRoom),
 				$author$project$SightRay$uncurl(currentRay)));
-		var reflectedRooms = A2($author$project$SightRay$hallway, model.room, currentRay);
+		var reflectedRooms = A2($author$project$SightRay$hallway, realRoom, currentRay);
 		var farthestRoom = A2(
 			$elm$core$Maybe$withDefault,
-			model.room,
+			realRoom,
 			$elm_community$list_extra$List$Extra$last(reflectedRooms));
 		var transitionRoomM = A3(
 			$elm$core$Maybe$map2,
@@ -16445,13 +16459,16 @@ var $author$project$Diagram$viewDiagramSuccess = F2(
 									$elm$core$List$map,
 									$author$project$Room$view(
 										$author$project$Diagram$currentZoomScale(model)),
-									_Utils_ap(
-										reflectedRooms,
-										$elm_community$maybe_extra$Maybe$Extra$toList(transitionRoomM)))),
+									function (rs) {
+										return _Utils_ap(
+											rs,
+											$elm_community$maybe_extra$Maybe$Extra$toList(transitionRoomM));
+									}(
+										A2($elm$core$List$drop, 1, reflectedRooms)))),
 								A2(
 								$author$project$Room$view,
 								$author$project$Diagram$currentZoomScale(model),
-								model.room),
+								realRoom),
 								A2(
 								$author$project$Diagram$viewBeam,
 								$elm$core$Maybe$Just(animation),
@@ -17021,7 +17038,7 @@ var $author$project$Main$view = function (model) {
 								$mdgriffith$elm_ui$Element$Region$heading(1),
 								$mdgriffith$elm_ui$Element$Font$size(30)
 							]),
-						$mdgriffith$elm_ui$Element$text('Pat\'s Infinite Forest Box')),
+						$mdgriffith$elm_ui$Element$text('Infinite Forest Box')),
 						$author$project$Main$viewScenario,
 						$author$project$Main$viewDiagramContainer(model)
 					]))));
