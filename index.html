@@ -5373,7 +5373,7 @@ var $author$project$RoomItem$RoomItem = F2(
 	function (pos, emoji) {
 		return {emoji: emoji, pos: pos};
 	});
-var $author$project$RoomItem$emojis = {camera: '📷', cameraFlash: '📸', cameraVid: '🎥', cameraVid2: '📹', cat: '🐈‍', palmTree: '🌴', parrot: '🦜', pineTree: '🌲', plant: '🪴', roundTree: '🌳'};
+var $author$project$RoomItem$emojis = {camera: '📷', cameraFlash: '📸', cameraVid: '🎥', cameraVid2: '📹', cat: '🐈‍', palmTree: '🌴', parrot: '🦜', pineTree: '🌲', plant: '🌱', roundTree: '🌳'};
 var $ianmackenzie$elm_geometry$Geometry$Types$Point2d = function (a) {
 	return {$: 'Point2d', a: a};
 };
@@ -13645,7 +13645,7 @@ var $author$project$Main$instructionsParagraph = F2(
 					A2(
 					$mdgriffith$elm_ui$Element$el,
 					_List_Nil,
-					$mdgriffith$elm_ui$Element$text('Take a picture of a bird in the mirror that appears to be ')),
+					$mdgriffith$elm_ui$Element$text('Take a photo of a bird that appears in the mirror to be ')),
 					A2(
 					$mdgriffith$elm_ui$Element$el,
 					_List_fromArray(
@@ -13725,7 +13725,6 @@ var $author$project$Diagram$MouseHoverOver = function (a) {
 	return {$: 'MouseHoverOver', a: a};
 };
 var $author$project$Diagram$NoOp = {$: 'NoOp'};
-var $author$project$Shared$constants = {containerHeight: 500, containerWidth: 500};
 var $ianmackenzie$elm_float_extra$Float$Extra$interpolateFrom = F3(
 	function (start, end, parameter) {
 		return (parameter <= 0.5) ? (start + (parameter * (end - start))) : (end + ((1 - parameter) * (start - end)));
@@ -13848,6 +13847,8 @@ var $ianmackenzie$elm_geometry$Frame2d$reverseY = function (frame) {
 				$ianmackenzie$elm_geometry$Frame2d$yDirection(frame))
 		});
 };
+var $author$project$Shared$svgHeight = 500;
+var $author$project$Shared$svgWidth = 500;
 var $ianmackenzie$elm_geometry$Vector2d$xy = F2(
 	function (_v0, _v1) {
 		var x = _v0.a;
@@ -13860,8 +13861,8 @@ var $author$project$Shared$svgFrame = $ianmackenzie$elm_geometry$Frame2d$reverse
 		$ianmackenzie$elm_geometry$Frame2d$translateBy,
 		A2(
 			$ianmackenzie$elm_geometry$Vector2d$xy,
-			$ianmackenzie$elm_units$Pixels$pixels((-$author$project$Shared$constants.containerWidth) / 2.0),
-			$ianmackenzie$elm_units$Pixels$pixels($author$project$Shared$constants.containerHeight / 2.0)),
+			$ianmackenzie$elm_units$Pixels$pixels((-$author$project$Shared$svgWidth) / 2.0),
+			$ianmackenzie$elm_units$Pixels$pixels($author$project$Shared$svgHeight / 2.0)),
 		$ianmackenzie$elm_geometry$Frame2d$atOrigin));
 var $author$project$Diagram$mouseToSceneCoords = F2(
 	function (zoomScale, _v0) {
@@ -15531,37 +15532,13 @@ var $ianmackenzie$elm_geometry$Axis2d$reverse = function (_v0) {
 		axis.originPoint,
 		$ianmackenzie$elm_geometry$Direction2d$reverse(axis.direction));
 };
-var $elm$svg$Svg$polygon = $elm$svg$Svg$trustedNode('polygon');
-var $ianmackenzie$elm_geometry_svg$Geometry$Svg$triangle2d = F2(
-	function (attributes, triangle) {
-		var _v0 = $ianmackenzie$elm_geometry$Triangle2d$vertices(triangle);
-		var p1 = _v0.a;
-		var p2 = _v0.b;
-		var p3 = _v0.c;
-		return A2(
-			$elm$svg$Svg$polygon,
-			A2(
-				$elm$core$List$cons,
-				$ianmackenzie$elm_geometry_svg$Geometry$Svg$pointsAttribute(
-					_List_fromArray(
-						[p1, p2, p3])),
-				attributes),
-			_List_Nil);
-	});
-var $author$project$Shared$triangleForArc = function (arc) {
-	return A3(
-		$ianmackenzie$elm_geometry$Triangle2d$from,
-		$ianmackenzie$elm_geometry$Arc2d$centerPoint(arc),
-		$ianmackenzie$elm_geometry$Arc2d$startPoint(arc),
-		$ianmackenzie$elm_geometry$Arc2d$endPoint(arc));
-};
 var $ianmackenzie$elm_geometry$Vector2d$scaleBy = F2(
 	function (k, _v0) {
 		var v = _v0.a;
 		return $ianmackenzie$elm_geometry$Geometry$Types$Vector2d(
 			{x: k * v.x, y: k * v.y});
 	});
-var $author$project$Shared$viewLabel = F4(
+var $author$project$Shared$svgLabel = F4(
 	function (color, startPoint, vector, text) {
 		var textPoint = A2(
 			$ianmackenzie$elm_geometry$Point2d$translateBy,
@@ -15617,6 +15594,30 @@ var $author$project$Shared$viewLabel = F4(
 								]))))
 				]));
 	});
+var $elm$svg$Svg$polygon = $elm$svg$Svg$trustedNode('polygon');
+var $ianmackenzie$elm_geometry_svg$Geometry$Svg$triangle2d = F2(
+	function (attributes, triangle) {
+		var _v0 = $ianmackenzie$elm_geometry$Triangle2d$vertices(triangle);
+		var p1 = _v0.a;
+		var p2 = _v0.b;
+		var p3 = _v0.c;
+		return A2(
+			$elm$svg$Svg$polygon,
+			A2(
+				$elm$core$List$cons,
+				$ianmackenzie$elm_geometry_svg$Geometry$Svg$pointsAttribute(
+					_List_fromArray(
+						[p1, p2, p3])),
+				attributes),
+			_List_Nil);
+	});
+var $author$project$Shared$triangleForArc = function (arc) {
+	return A3(
+		$ianmackenzie$elm_geometry$Triangle2d$from,
+		$ianmackenzie$elm_geometry$Arc2d$centerPoint(arc),
+		$ianmackenzie$elm_geometry$Arc2d$startPoint(arc),
+		$ianmackenzie$elm_geometry$Arc2d$endPoint(arc));
+};
 var $author$project$SightRay$viewAngle = F2(
 	function (bounce, arc) {
 		var arcCenter = $ianmackenzie$elm_geometry$Arc2d$centerPoint(arc);
@@ -15661,7 +15662,7 @@ var $author$project$SightRay$viewAngle = F2(
 						]),
 					$author$project$Shared$triangleForArc(arc)),
 					A4(
-					$author$project$Shared$viewLabel,
+					$author$project$Shared$svgLabel,
 					$author$project$Shared$colors.greyDark,
 					function (l) {
 						return A2($ianmackenzie$elm_geometry$LineSegment2d$interpolate, l, 0.7);
@@ -15939,7 +15940,7 @@ var $author$project$SightRay$viewDistanceLabel = function (ray) {
 					]),
 				A2($ianmackenzie$elm_geometry$Circle2d$atPoint, endxy, $author$project$RoomItem$radius)),
 				A4(
-				$author$project$Shared$viewLabel,
+				$author$project$Shared$svgLabel,
 				$author$project$Shared$colors.greyMedium,
 				endxy,
 				A2($ianmackenzie$elm_geometry$Vector2d$meters, 0.1, 0.3),
@@ -16515,9 +16516,9 @@ var $author$project$Diagram$view = function (model) {
 				_List_fromArray(
 					[
 						$elm$svg$Svg$Attributes$width(
-						$elm$core$String$fromFloat($author$project$Shared$constants.containerWidth)),
+						$elm$core$String$fromFloat($author$project$Shared$svgWidth)),
 						$elm$svg$Svg$Attributes$height(
-						$elm$core$String$fromFloat($author$project$Shared$constants.containerHeight))
+						$elm$core$String$fromFloat($author$project$Shared$svgHeight))
 					]),
 				_List_fromArray(
 					[
@@ -16989,7 +16990,7 @@ var $author$project$Main$viewScenario = A2(
 					$mdgriffith$elm_ui$Element$text('Infinite Forest Box, ')),
 					$mdgriffith$elm_ui$Element$text('a small room with 4 adjustable mirrors for walls. '),
 					$mdgriffith$elm_ui$Element$text('The room doesn\'t contain much, just Garrett the Parrot 🦜 '),
-					$mdgriffith$elm_ui$Element$text('and a few potted plants 🪴. '),
+					$mdgriffith$elm_ui$Element$text('and a few potted plants 🌱. '),
 					$mdgriffith$elm_ui$Element$text('But the light bouncing around off the mirrored walls '),
 					$mdgriffith$elm_ui$Element$text('gives Pat the illusion of standing in an "infinite forest" '),
 					$mdgriffith$elm_ui$Element$text('surrounded by many plants and birds: '),
