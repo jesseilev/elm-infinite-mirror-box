@@ -220,7 +220,7 @@ instructionsParagraph levelIndex sightDistance =
         -- , Background.color lightGrey
         ]
         [ El.el [ ] 
-            (El.text "Take a photo of a bird that appears in the mirror to be ")
+            (El.text "Aim the camera to take a photo of a version of the bird in the mirror that appears to be ")
         , El.el 
             [ Font.bold
             , Font.color yellow1
