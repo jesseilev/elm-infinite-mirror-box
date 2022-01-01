@@ -150,7 +150,6 @@ interpolateFrom r1 r2 pct =
 setPlayerEmoji : String -> Room -> Room 
 setPlayerEmoji emoji room = 
     { room | playerItem = RoomItem.create room.playerItem.pos emoji }
-        |> Debug.log "set emoji"
 
 -- VIEW
 
