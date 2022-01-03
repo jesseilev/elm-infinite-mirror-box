@@ -13,36 +13,21 @@ module Diagram exposing
     )
 
 import Angle exposing (Angle)
-import Arc2d
 import Array
 import Axis2d exposing (Axis2d)
-import Browser
 import Circle2d
-import Color
 import Direction2d exposing (Direction2d)
 import Ease
-import Element as El exposing (Element)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Events
-import Element.Font as Font
-import Element.Input as Input
-import Element.Region as Region
 import Float.Extra as Float
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
-import Html.Attributes
-import Html.Events
-import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Pointer as Pointer
-import Html.Events.Extra.Wheel as Wheel
 import Length exposing (Length, Meters)
 import LineSegment2d exposing (LineSegment2d)
 import List.Extra as List
-import List.Nonempty
 import Maybe.Extra as Maybe
-import Pixels exposing (Pixels, pixels)
+import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Polygon2d exposing (Polygon2d)
 import Polyline2d exposing (Polyline2d)
@@ -52,14 +37,8 @@ import RoomItem exposing (RoomItem)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
 import Rectangle2d exposing (Rectangle2d)
-import SketchPlane3d exposing (toPlane)
-import TypedSvg
-import TypedSvg.Attributes
-import TypedSvg.Attributes.InPx
-import TypedSvg.Types exposing (CoordinateSystem(..), Paint(..))
 import Shared exposing (..)
 import SightRay exposing (SightRay)
-import String exposing (startsWith)
 import Vector2d exposing (Vector2d)
 import Time
 
@@ -130,17 +109,6 @@ init room sightDir sightDist =
     , ticks = 0
     , photoAttempt = Nothing
     }
-    
-reset : Model -> Model 
-reset model = 
-    { model 
-        | mouseHoverArea = Nothing
-        , mouseDragPos = Nothing
-        , dragging = False
-        , ticks = 0
-        , photoAttempt = Nothing
-        , sightDirection = Direction2d.negativeX
-    }
 
 
  -- MODEL PROPERTIES --
@@ -170,20 +138,6 @@ rayNormal model =
             model.sightDirection 
             model.sightDistance
         )
-
-rayDistance : Model -> Float
-rayDistance model =
-    rayNormal model 
-        |> SightRay.length
-        |> (\dist -> 
-            if closeEnough model.sightDistance dist then model.sightDistance else dist
-        )
-        |> Length.inMeters
-        |> ((*) 100)
-        |> round
-        |> toFloat 
-        |> (\l -> l / 100)
-
 
 projectedSightline : Model -> LineSegment
 projectedSightline model = 
@@ -271,7 +225,6 @@ checkAnimationFinished model =
             ani.step >= List.length (SightRay.uncurledSeries (rayNormal model)) - 1
         )
         |> Maybe.withDefault False
-        |> Debug.log "ani finished"
 
 updatePlayerDirection : Model -> Point -> Point -> Model
 updatePlayerDirection model mousePos prevMousePos =

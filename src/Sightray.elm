@@ -28,7 +28,6 @@ import Geometry.Svg as Svg
 import Length exposing (Length)
 import LineSegment2d exposing (LineSegment2d)
 import List.Extra as List
-import List.Nonempty
 import Maybe.Extra as Maybe
 import Point2d
 import Polygon2d
@@ -39,7 +38,6 @@ import RoomItem exposing (RoomItem)
 import Shared exposing (..)
 import Svg exposing (Svg)
 import Svg.Attributes as Attr
-import Triangle2d
 import Vector2d 
 
 

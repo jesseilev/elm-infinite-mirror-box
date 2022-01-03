@@ -5655,7 +5655,7 @@ var $author$project$Main$init = function (_v0) {
 		{
 			levelIndex: 0,
 			levels: $author$project$Main$initialLevels,
-			windowSize: A2($author$project$Main$WindowSize, 905, 600)
+			windowSize: A2($author$project$Main$WindowSize, 0, 0)
 		},
 		A2(
 			$elm$core$Task$perform,
@@ -5715,20 +5715,18 @@ var $elm_community$list_extra$List$Extra$getAt = F2(
 var $author$project$Main$diagramM = function (model) {
 	return A2($elm_community$list_extra$List$Extra$getAt, model.levelIndex, model.levels);
 };
-var $elm$core$Maybe$withDefault = F2(
-	function (_default, maybe) {
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
 		if (maybe.$ === 'Just') {
 			var value = maybe.a;
-			return value;
+			return $elm$core$Maybe$Just(
+				f(value));
 		} else {
-			return _default;
+			return $elm$core$Maybe$Nothing;
 		}
 	});
-var $author$project$Main$diagram = A2(
-	$elm$core$Basics$composeR,
-	$author$project$Main$diagramM,
-	$elm$core$Maybe$withDefault($author$project$Diagram$initLevel1));
 var $elm$core$Platform$Sub$map = _Platform_map;
+var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
 var $elm$browser$Browser$Events$Window = {$: 'Window'};
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
@@ -6146,17 +6144,6 @@ var $elm$browser$Browser$Events$onResize = function (func) {
 				A2($elm$json$Json$Decode$field, 'innerHeight', $elm$json$Json$Decode$int))));
 };
 var $author$project$Diagram$Tick = {$: 'Tick'};
-var $elm$core$Debug$log = _Debug_log;
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
 var $author$project$SightRay$EndAtItem = F2(
 	function (a, b) {
 		return {$: 'EndAtItem', a: a, b: b};
@@ -6566,6 +6553,15 @@ var $elm_community$maybe_extra$Maybe$Extra$cons = F2(
 		}
 	});
 var $elm_community$maybe_extra$Maybe$Extra$values = A2($elm$core$List$foldr, $elm_community$maybe_extra$Maybe$Extra$cons, _List_Nil);
+var $elm$core$Maybe$withDefault = F2(
+	function (_default, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return value;
+		} else {
+			return _default;
+		}
+	});
 var $ianmackenzie$elm_geometry$Geometry$Types$Axis2d = function (a) {
 	return {$: 'Axis2d', a: a};
 };
@@ -7318,21 +7314,18 @@ var $author$project$SightRay$uncurl = function (ray) {
 var $author$project$SightRay$uncurledSeries = $elm_community$list_extra$List$Extra$iterate($author$project$SightRay$uncurl);
 var $author$project$Diagram$checkAnimationFinished = function (model) {
 	return A2(
-		$elm$core$Debug$log,
-		'ani finished',
+		$elm$core$Maybe$withDefault,
+		false,
 		A2(
-			$elm$core$Maybe$withDefault,
-			false,
-			A2(
-				$elm$core$Maybe$map,
-				function (ani) {
-					return _Utils_cmp(
-						ani.step,
-						$elm$core$List$length(
-							$author$project$SightRay$uncurledSeries(
-								$author$project$Diagram$rayNormal(model))) - 1) > -1;
-				},
-				$author$project$Diagram$successAnimation(model))));
+			$elm$core$Maybe$map,
+			function (ani) {
+				return _Utils_cmp(
+					ani.step,
+					$elm$core$List$length(
+						$author$project$SightRay$uncurledSeries(
+							$author$project$Diagram$rayNormal(model))) - 1) > -1;
+			},
+			$author$project$Diagram$successAnimation(model)));
 };
 var $elm$time$Time$Every = F2(
 	function (a, b) {
@@ -7557,7 +7550,6 @@ var $elm_community$maybe_extra$Maybe$Extra$isJust = function (m) {
 		return true;
 	}
 };
-var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
 var $author$project$Diagram$subscriptions = function (model) {
 	var animationM = $author$project$Diagram$successAnimation(model);
 	var animating = A2(
@@ -7581,10 +7573,15 @@ var $author$project$Main$subscriptions = function (model) {
 		_List_fromArray(
 			[
 				A2(
-				$elm$core$Platform$Sub$map,
-				$author$project$Main$DiagramMsg,
-				$author$project$Diagram$subscriptions(
-					$author$project$Main$diagram(model))),
+				$elm$core$Maybe$withDefault,
+				$elm$core$Platform$Sub$none,
+				A2(
+					$elm$core$Maybe$map,
+					A2(
+						$elm$core$Basics$composeR,
+						$author$project$Diagram$subscriptions,
+						$elm$core$Platform$Sub$map($author$project$Main$DiagramMsg)),
+					$author$project$Main$diagramM(model))),
 				$elm$browser$Browser$Events$onResize(
 				F2(
 					function (w, h) {
@@ -14339,6 +14336,7 @@ var $author$project$Room$setPlayerEmoji = F2(
 			});
 	});
 var $author$project$Shared$svgEmpty = A2($elm$svg$Svg$g, _List_Nil, _List_Nil);
+var $author$project$Shared$colors = {blue1: '#2c6fef', green1: '#179e7e', greyDark: '#555', greyLight: '#ccc', greyMedium: '#888', greyVeryLight: '#eee', red1: '#e1503c', yellow1: '#eea71f', yellowDark: '#df9912', yellowLight: '#f2b135'};
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
 var $author$project$Shared$floatAttributeForZoom = F2(
 	function (zoomScale, f) {
@@ -14452,7 +14450,6 @@ var $ianmackenzie$elm_geometry_svg$Geometry$Svg$circle2d = F2(
 					A2($elm$core$List$cons, r, attributes))),
 			_List_Nil);
 	});
-var $author$project$Shared$colors = {blue1: '#2c6fef', green1: '#179e7e', greyDark: '#555', greyMedium: '#888', greyVeryLight: '#eee', red1: '#e1503c', yellow1: '#eea71f', yellowDark: '#df9912', yellowLight: '#f2b135'};
 var $elm$svg$Svg$Attributes$fontSize = _VirtualDom_attribute('font-size');
 var $ianmackenzie$elm_geometry$Direction2d$mirrorAcross = F2(
 	function (_v0, _v1) {
@@ -14564,7 +14561,7 @@ var $author$project$Room$view = F2(
 								$elm$svg$Svg$Attributes$fill('none'),
 								$elm$svg$Svg$Attributes$strokeWidth(
 								A2($author$project$Shared$floatAttributeForZoom, zoomScale, 0.03)),
-								$elm$svg$Svg$Attributes$stroke('lightGrey')
+								$elm$svg$Svg$Attributes$stroke($author$project$Shared$colors.greyLight)
 							]),
 						A2($ianmackenzie$elm_geometry$Polygon2d$placeIn, $author$project$Shared$roomFrame, model.wallShape)),
 						viewRoomItem(model.playerItem),
@@ -16756,6 +16753,9 @@ var $author$project$Diagram$view = function (model) {
 					]))
 			]));
 };
+var $author$project$Main$ChangeLevel = function (a) {
+	return {$: 'ChangeLevel', a: a};
+};
 var $author$project$Main$Reset = function (a) {
 	return {$: 'Reset', a: a};
 };
@@ -16949,31 +16949,65 @@ var $mdgriffith$elm_ui$Element$row = F2(
 var $author$project$Main$veryDarkGrey = A3($mdgriffith$elm_ui$Element$rgb, 0.3, 0.3, 0.3);
 var $author$project$Main$yellow1 = A3($mdgriffith$elm_ui$Element$rgb, 0.933, 0.655, 0.122);
 var $author$project$Main$viewInstructions = F2(
-	function (levelIndex, level) {
+	function (model, level) {
 		var body = function () {
 			var _v0 = _Utils_Tuple2(
 				$author$project$Diagram$hasSucceeded(level),
 				$author$project$Diagram$checkAnimationFinished(level));
 			if (_v0.a) {
 				if (!_v0.b) {
-					return _List_Nil;
-				} else {
 					return _List_fromArray(
 						[
-							$mdgriffith$elm_ui$Element$text('Nice work!'),
-							A2(
-							$mdgriffith$elm_ui$Element$Input$button,
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$Font$color($author$project$Main$yellow1),
-									$mdgriffith$elm_ui$Element$Font$bold
-								]),
-							{
-								label: $mdgriffith$elm_ui$Element$text('Reload'),
-								onPress: $elm$core$Maybe$Just(
-									$author$project$Main$Reset(levelIndex))
-							})
+							$mdgriffith$elm_ui$Element$text('  ')
 						]);
+				} else {
+					return $elm$core$List$concat(
+						_List_fromArray(
+							[
+								_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$text('Nice work! '),
+									A2(
+									$mdgriffith$elm_ui$Element$Input$button,
+									_List_fromArray(
+										[
+											$mdgriffith$elm_ui$Element$Font$color($author$project$Main$yellow1),
+											$mdgriffith$elm_ui$Element$Font$bold
+										]),
+									{
+										label: $mdgriffith$elm_ui$Element$text('Try again '),
+										onPress: $elm$core$Maybe$Just(
+											$author$project$Main$Reset(model.levelIndex))
+									})
+								]),
+								A2(
+								$elm$core$Maybe$withDefault,
+								_List_Nil,
+								A2(
+									$elm$core$Maybe$map,
+									function (_v1) {
+										return _List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$text('or go to the '),
+												A2(
+												$mdgriffith$elm_ui$Element$Input$button,
+												_List_fromArray(
+													[
+														$mdgriffith$elm_ui$Element$Font$color($author$project$Main$yellow1),
+														$mdgriffith$elm_ui$Element$Font$bold
+													]),
+												{
+													label: $mdgriffith$elm_ui$Element$text('Next level >'),
+													onPress: $elm$core$Maybe$Just(
+														$author$project$Main$ChangeLevel(1))
+												})
+											]);
+									},
+									$author$project$Main$diagramM(
+										_Utils_update(
+											model,
+											{levelIndex: model.levelIndex + 1}))))
+							]));
 				}
 			} else {
 				return _List_fromArray(
@@ -17006,7 +17040,7 @@ var $author$project$Main$viewInstructions = F2(
 			$mdgriffith$elm_ui$Element$row,
 			_List_fromArray(
 				[
-					A2($mdgriffith$elm_ui$Element$paddingXY, 40, 40),
+					$mdgriffith$elm_ui$Element$padding(40),
 					$mdgriffith$elm_ui$Element$centerX,
 					$mdgriffith$elm_ui$Element$spacing(5)
 				]),
@@ -17021,9 +17055,6 @@ var $mdgriffith$elm_ui$Element$Background$color = function (clr) {
 			'bg-' + $mdgriffith$elm_ui$Internal$Model$formatColorClass(clr),
 			'background-color',
 			clr));
-};
-var $author$project$Main$ChangeLevel = function (a) {
-	return {$: 'ChangeLevel', a: a};
 };
 var $mdgriffith$elm_ui$Internal$Model$Transparency = F2(
 	function (a, b) {
@@ -17223,7 +17254,18 @@ var $author$project$Main$viewLevelControls = F3(
 					[
 						A4($author$project$Main$viewLevelButton, levels, levelIndex, '<', -1),
 						$mdgriffith$elm_ui$Element$text(
-						'Level ' + $elm$core$String$fromInt(1 + levelIndex)),
+						function (_v0) {
+							var i = _v0.a;
+							var n = _v0.b;
+							return i + (' / ' + n);
+						}(
+							A3(
+								$elm$core$Tuple$mapBoth,
+								$elm$core$String$fromInt,
+								$elm$core$String$fromInt,
+								_Utils_Tuple2(
+									levelIndex + 1,
+									$elm$core$List$length(levels))))),
 						A4($author$project$Main$viewLevelButton, levels, levelIndex, '>', 1)
 					])));
 	});
@@ -17268,29 +17310,39 @@ var $author$project$Main$viewDiagramContainer = function (model) {
 						$mdgriffith$elm_ui$Element$Font$size(
 						A2($author$project$Main$fontScale, model.windowSize, 0))
 					]),
-				_List_fromArray(
-					[
-						A2(
-						$author$project$Main$viewInstructions,
-						model.levelIndex,
-						$author$project$Main$diagram(model)),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[$mdgriffith$elm_ui$Element$centerX]),
-						A2(
-							$mdgriffith$elm_ui$Element$map,
-							$author$project$Main$DiagramMsg,
-							$mdgriffith$elm_ui$Element$html(
-								$author$project$Diagram$view(
-									$author$project$Main$diagram(model)))))
-					]))
+				A2(
+					$elm$core$Maybe$withDefault,
+					_List_fromArray(
+						[
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$centerX,
+									$mdgriffith$elm_ui$Element$padding(40)
+								]),
+							$mdgriffith$elm_ui$Element$text('Sorry, something went wrong :/ Try refreshing the page.'))
+						]),
+					A2(
+						$elm$core$Maybe$map,
+						function (level) {
+							return _List_fromArray(
+								[
+									A2($author$project$Main$viewInstructions, model, level),
+									A2(
+									$mdgriffith$elm_ui$Element$el,
+									_List_fromArray(
+										[$mdgriffith$elm_ui$Element$centerX]),
+									A2(
+										$mdgriffith$elm_ui$Element$map,
+										$author$project$Main$DiagramMsg,
+										$mdgriffith$elm_ui$Element$html(
+											$author$project$Diagram$view(level))))
+								]);
+						},
+						$author$project$Main$diagramM(model))))
 			]));
 };
-var $author$project$Main$paragraphAttrs = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$spacing(15)
-	]);
 var $author$project$Main$viewScenario = function (windowSize) {
 	return A2(
 		$mdgriffith$elm_ui$Element$column,
@@ -17311,7 +17363,10 @@ var $author$project$Main$viewScenario = function (windowSize) {
 				$mdgriffith$elm_ui$Element$text('Scenario')),
 				A2(
 				$mdgriffith$elm_ui$Element$paragraph,
-				$author$project$Main$paragraphAttrs,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$spacing(15)
+					]),
 				_List_fromArray(
 					[
 						$mdgriffith$elm_ui$Element$text('Pat the Cat 🐈‍ is an avid wildlife photographer. '),
@@ -17322,7 +17377,10 @@ var $author$project$Main$viewScenario = function (windowSize) {
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$paragraph,
-				$author$project$Main$paragraphAttrs,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$spacing(15)
+					]),
 				_List_fromArray(
 					[
 						$mdgriffith$elm_ui$Element$text('Arriving home, Pat enters her '),

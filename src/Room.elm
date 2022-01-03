@@ -165,17 +165,10 @@ view zoomScale model =
                 [ Svg.polygon2d 
                     [ Attr.fill "none"
                     , Attr.strokeWidth <| Shared.floatAttributeForZoom zoomScale 0.03
-                    , Attr.stroke "lightGrey"
-                    -- , Attr.opacity "0.5"
+                    , Attr.stroke Shared.colors.greyLight
                     ]
                     (model.wallShape |> Polygon2d.placeIn Shared.roomFrame)
                 , viewRoomItem model.playerItem
-                    -- |> Svg.rotateAround model.viewerPos 
-                    --     (if model.status == Standing then 
-                    --         Angle.degrees 0
-                    --     else 
-                    --      Direction2d.toAngle model.viewerDirection |> Quantity.minus (Angle.degrees 90)
-                    --     )
                 , viewRoomItem model.targetItem
                 ]
                 ++ (List.map viewRoomItem model.trees)        

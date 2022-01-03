@@ -19,7 +19,7 @@ import Shared
 import Shared exposing (noCmds)
 import Browser.Dom
 import Task
-import Shared exposing (debugLogF)
+import Shared
 
 
 main = 
@@ -29,6 +29,8 @@ main =
         , subscriptions = subscriptions
         , view = view
         }
+
+-- Model --
 
 type alias Model =
     { levelIndex : Int
@@ -45,7 +47,7 @@ init : () -> (Model, Cmd Msg)
 init _ =
     ( { levelIndex = 0
       , levels = initialLevels
-      , windowSize = WindowSize 905 600 
+      , windowSize = WindowSize 0 0
       }
     , Task.perform 
         (\vp -> WindowResize { width = round vp.scene.width, height = round vp.scene.height }) 
@@ -65,21 +67,20 @@ diagramM model =
     model.levels 
         |> List.getAt model.levelIndex
 
-diagram =
-    diagramM >> Maybe.withDefault Diagram.initLevel1
 
-
--- SUBSCRIPTIONS -- 
+-- Subscriptions -- 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ diagram model |> Diagram.subscriptions |> Sub.map DiagramMsg
+        [ diagramM model 
+            |> Maybe.map (Diagram.subscriptions >> Sub.map DiagramMsg)
+            |> Maybe.withDefault Sub.none
         , Browser.Events.onResize (\w h -> WindowResize (WindowSize w h))
         ]
 
 
--- UPDATE --
+-- Update --
 
 type Msg 
     = NoOp
@@ -128,7 +129,8 @@ resetDiagramIfSucceeded index dia =
         |> Maybe.filter (\_ -> Diagram.hasSucceeded dia)
         |> Maybe.withDefault dia
 
--- VIEW --
+
+-- View --
 
 view : Model -> Html Msg
 view model = 
@@ -168,17 +170,6 @@ view model =
             )
         )
 
-fontScale : WindowSize -> Int -> Int
-fontScale windowSize n =
-    let
-        windowWidthFactor = 
-            0.01 * toFloat windowSize.width
-
-        baseFontSize =
-            14 + windowWidthFactor
-    in
-        n |> El.modular (baseFontSize) 1.25 |> round
-
 viewScenario : WindowSize -> Element Msg 
 viewScenario windowSize = 
     El.column 
@@ -186,14 +177,14 @@ viewScenario windowSize =
         [ El.el 
             [ Region.heading 3, Font.size <| fontScale windowSize 3 ] 
             <| El.text "Scenario"
-        , El.paragraph paragraphAttrs 
+        , El.paragraph [ El.spacing 15 ] 
             [ El.text "Pat the Cat 🐈‍ is an avid wildlife photographer. "
             , El.text "She recently bought a fancy new camera, "
             , El.text "and is excited to start taking some pics. "
             , El.text "She is especially curious to test out the range "
             , El.text "of its zoom capabilities."
             ]
-        , El.paragraph paragraphAttrs
+        , El.paragraph [ El.spacing 15 ]
             [ El.text "Arriving home, Pat enters her "
             , El.el [ ] (El.text "Infinite Forest Box, ")
             , El.text "a small room with 4 adjustable mirrors for walls. "
@@ -219,22 +210,21 @@ viewDiagramContainer model =
         [ viewLevelControls model.windowSize model.levels model.levelIndex
         , El.column 
             [ El.padding 10, El.width El.fill, Font.size <| fontScale model.windowSize 0 ]  
-            [ viewInstructions model.levelIndex (diagram model)
-            , El.el 
-                [ El.centerX ] 
-                ( diagram model 
-                    |> Diagram.view 
-                    |> El.html 
-                    |> El.map DiagramMsg
+            ( diagramM model 
+                |> Maybe.map (\level -> 
+                    [ viewInstructions model level
+                    , El.el 
+                        [ El.centerX ] 
+                        (level |> Diagram.view |> El.html |> El.map DiagramMsg)
+                    ]
                 )
-            ]
-        ]
+                |> Maybe.withDefault 
+                    [ El.el [ El.centerX, El.padding 40 ] 
+                        <| El.text "Sorry, something went wrong :/ Try refreshing the page." 
+                    ]
+            )
 
-veryDarkGrey = El.rgb 0.3 0.3 0.3 
-darkGrey = El.rgb 0.4 0.4 0.4 
-lightGrey = El.rgb 0.7 0.7 0.7
-veryLightGrey = El.rgb 0.9 0.9 0.9
-yellow1 = El.rgb 0.933 0.655 0.122
+        ]
 
 viewLevelControls : WindowSize -> List Diagram.Model -> Int -> Element Msg 
 viewLevelControls windowSize levels levelIndex = 
@@ -251,7 +241,10 @@ viewLevelControls windowSize levels levelIndex =
         <| El.row 
             [ El.spacing 20, El.centerX, Font.color veryDarkGrey ] 
             [ viewLevelButton levels levelIndex "<" -1
-            , levelIndex |> (+) 1 |> String.fromInt |> (++) "Level " |> El.text 
+            , (levelIndex + 1, List.length levels)
+                |> Tuple.mapBoth String.fromInt String.fromInt
+                |> (\(i, n) -> i ++ " / " ++ n )
+                |> El.text 
             , viewLevelButton levels levelIndex ">" 1
             ]
 
@@ -276,27 +269,31 @@ viewLevelButton levels levelIndex labelText changeAmount =
     Input.button attrs 
         { label = El.text labelText, onPress = onPress }
 
-paragraphAttrs =
-    [ El.spacing 15 ] 
-
-maxMainWidth windowWidth = 
-    if isPhone windowWidth then windowWidth else 800
-
-isPhone width = 
-    width < 980
-
-viewInstructions : Int -> Diagram.Model -> Element Msg
-viewInstructions levelIndex level = 
+viewInstructions : Model -> Diagram.Model -> Element Msg
+viewInstructions model level = 
     let
         body = 
             case (Diagram.hasSucceeded level, Diagram.checkAnimationFinished level) of
-                (True, False) -> []
+                (True, False) -> 
+                    [ El.text "  " ]
                 (True, True) ->
-                    [ El.text "Nice work!" 
-                    , Input.button [ Font.color yellow1 , Font.bold ]
-                        { label = El.text "Reload"
-                        , onPress = Just (Reset levelIndex)
-                        }
+                    List.concat 
+                    [ [ El.text "Nice work! " 
+                      , Input.button [ Font.color yellow1 , Font.bold ]
+                          { label = El.text "Try again "
+                          , onPress = Just (Reset model.levelIndex)
+                          }
+                      ]
+                    , diagramM { model | levelIndex = model.levelIndex + 1 }
+                        |> Maybe.map (\_ ->
+                            [ El.text "or go to the "
+                            , Input.button [ Font.color yellow1, Font.bold]
+                                { label = El.text "Next level >"
+                                , onPress = Just (ChangeLevel 1)
+                                }
+                            ]
+                        )
+                        |> Maybe.withDefault []
                     ]
                 _ ->
                     [ El.paragraph 
@@ -310,11 +307,30 @@ viewInstructions levelIndex level =
                         ]
                     ]
     in
-    
-    El.row
-        [ El.paddingXY 40 40
-        , El.centerX
-        , El.spacing 5
-        ]
-        body
+    El.row [ El.padding 40, El.centerX, El.spacing 5] body
 
+
+-- View Helpers -- 
+
+fontScale : WindowSize -> Int -> Int
+fontScale windowSize n =
+    let
+        windowWidthFactor = 
+            0.01 * toFloat windowSize.width
+
+        baseFontSize =
+            14 + windowWidthFactor
+    in
+        n |> El.modular (baseFontSize) 1.25 |> round
+
+maxMainWidth windowWidth = 
+    if isPhone windowWidth then windowWidth else 800
+
+isPhone width = 
+    width < 980
+
+veryDarkGrey = El.rgb 0.3 0.3 0.3 
+darkGrey = El.rgb 0.4 0.4 0.4 
+lightGrey = El.rgb 0.7 0.7 0.7
+veryLightGrey = El.rgb 0.9 0.9 0.9
+yellow1 = El.rgb 0.933 0.655 0.122

@@ -77,6 +77,7 @@ colors =
     , red1 = "#e1503c"
     , green1 = "#179e7e"
     , greyVeryLight = "#eee"
+    , greyLight = "#ccc"
     , greyMedium = "#888"
     , greyDark = "#555"
     }
